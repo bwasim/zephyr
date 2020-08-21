@@ -103,6 +103,12 @@
 		label = "VL53L0X";
 		xshut-gpios = <&gpioc 6 GPIO_ACTIVE_HIGH>;
 	};
+	
+	sps30@69 {
+		compatible = "sensirion,sps30";
+		reg = <0x69>;
+		label = "SPS30";
+	};
 };
 
 &i2c3 {

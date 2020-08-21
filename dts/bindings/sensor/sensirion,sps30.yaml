@@ -1,0 +1,8 @@
+# Copyright (c) 2020, Bilal Wasim
+# SPDX-License-Identifier: Apache-2.0
+
+description: Sensirion SPS30 Particulate Matter Sensor
+
+compatible: "sensirion,sps30"
+
+include: i2c-device.yaml
