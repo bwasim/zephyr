@@ -43,6 +43,7 @@ int main(void) {
     int16_t ret;
 
     /* Initialize I2C bus */
+    sensirion_i2c_select_bus(2);
     sensirion_i2c_init();
 
     /* Busy loop for initialization, because the main loop does not work without
