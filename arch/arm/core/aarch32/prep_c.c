@@ -77,8 +77,7 @@ void __weak relocate_vector_table(void)
 
 #endif /* CONFIG_CPU_CORTEX_M_HAS_VTOR */
 
-//#if defined(CONFIG_CPU_HAS_FPU)
-#if 0
+#if defined(CONFIG_CPU_HAS_FPU)
 static inline void z_arm_floating_point_init(void)
 {
 	/*
@@ -175,7 +174,7 @@ void z_arm_prep_c(void)
 {
 	relocate_vector_table();
 #if defined(CONFIG_CPU_HAS_FPU)
-//	z_arm_floating_point_init();
+	z_arm_floating_point_init();
 #endif
 	z_bss_zero();
 	z_data_copy();

@@ -151,33 +151,27 @@ SECTION_SUBSEC_FUNC(TEXT, _reset_section, __start)
      */
 
     /* FIQ mode stack */
-    ldr r0, =(MODE_FIQ | I_BIT | F_BIT | E_BIT)
-    msr CPSR_c, r0
+    msr CPSR_c, #(MODE_FIQ | I_BIT | F_BIT)
     ldr sp, =(z_arm_fiq_stack + CONFIG_ARMV7_FIQ_STACK_SIZE)
 
     /* IRQ mode stack */
-    ldr r0, =(MODE_IRQ | I_BIT | F_BIT | E_BIT)
-    msr CPSR_c, r0
+    msr CPSR_c, #(MODE_IRQ | I_BIT | F_BIT)
     ldr sp, =(z_interrupt_stacks + CONFIG_ISR_STACK_SIZE)
 
     /* ABT mode stack */
-    ldr r0, =(MODE_ABT | I_BIT | F_BIT | E_BIT)
-    msr CPSR_c, r0
+    msr CPSR_c, #(MODE_ABT | I_BIT | F_BIT)
     ldr sp, =(z_arm_abort_stack + CONFIG_ARMV7_EXCEPTION_STACK_SIZE)
 
     /* UND mode stack */
-    ldr r0, =(MODE_UND | I_BIT | F_BIT | E_BIT)
-    msr CPSR_c, r0
+    msr CPSR_c, #(MODE_UND | I_BIT | F_BIT)
     ldr sp, =(z_arm_undef_stack + CONFIG_ARMV7_EXCEPTION_STACK_SIZE)
 
     /* SVC mode stack */
-    ldr r0, =(MODE_SVC | I_BIT | F_BIT | E_BIT)
-    msr CPSR_c, r0
+    msr CPSR_c, #(MODE_SVC | I_BIT | F_BIT)
     ldr sp, =(z_arm_svc_stack + CONFIG_ARMV7_SVC_STACK_SIZE)
 
     /* SYS mode stack */
-    ldr r0, =(MODE_SYS | I_BIT | F_BIT | E_BIT)
-    msr CPSR_c, r0
+    msr CPSR_c, #(MODE_SYS | I_BIT | F_BIT)
     ldr sp, =(z_arm_sys_stack + CONFIG_ARMV7_SYS_STACK_SIZE)
 
 #if defined(CONFIG_PLATFORM_SPECIFIC_INIT)
