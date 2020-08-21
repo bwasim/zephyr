@@ -177,7 +177,7 @@ are included in that order by the C preprocessor.
 Here are some ways to set it:
 
 1. on the cmake build command line
-   (``-DDTC_OVERLAY_FILE=file1.overlay;file2.overlay``)
+   (``-DDTC_OVERLAY_FILE="file1.overlay;file2.overlay"``)
 #. with the CMake ``set()`` command in the application ``CMakeLists.txt``,
    before including zephyr's :file:`boilerplate.cmake` file
 #. using a ``DTC_OVERLAY_FILE`` environment variable (deprecated)
@@ -370,13 +370,13 @@ device-specific configuration and data structures and API functions, like this:
    	/* per-device values to store in RAM */
    };
    struct my_dev_cfg {
-   	u32_t freq; /* Just an example: initial clock frequency in Hz */
+   	uint32_t freq; /* Just an example: initial clock frequency in Hz */
    	/* other configuration to store in ROM */
    };
 
    /* Implement driver API functions (drivers/some_api.h callbacks): */
-   static int my_driver_api_func1(struct device *dev, u32_t *foo) { /* ... */ }
-   static int my_driver_api_func2(struct device *dev, u64_t bar) { /* ... */ }
+   static int my_driver_api_func1(struct device *dev, uint32_t *foo) { /* ... */ }
+   static int my_driver_api_func2(struct device *dev, uint64_t bar) { /* ... */ }
    static struct some_api my_api_funcs = {
    	.func1 = my_driver_api_func1,
    	.func2 = my_driver_api_func2,

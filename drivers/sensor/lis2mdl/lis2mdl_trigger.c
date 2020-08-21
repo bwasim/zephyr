@@ -20,7 +20,7 @@ LOG_MODULE_DECLARE(LIS2MDL, CONFIG_SENSOR_LOG_LEVEL);
 
 static int lis2mdl_enable_int(struct device *dev, int enable)
 {
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
+	struct lis2mdl_data *lis2mdl = dev->data;
 
 	/* set interrupt on mag */
 	return lis2mdl_drdy_on_pin_set(lis2mdl->ctx, enable);
@@ -31,7 +31,7 @@ int lis2mdl_trigger_set(struct device *dev,
 			  const struct sensor_trigger *trig,
 			  sensor_trigger_handler_t handler)
 {
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
+	struct lis2mdl_data *lis2mdl = dev->data;
 	union axis3bit16_t raw;
 
 	if (trig->chan == SENSOR_CHAN_MAGN_XYZ) {
@@ -53,9 +53,8 @@ int lis2mdl_trigger_set(struct device *dev,
 static void lis2mdl_handle_interrupt(void *arg)
 {
 	struct device *dev = arg;
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
-	const struct lis2mdl_config *const config =
-						dev->config_info;
+	struct lis2mdl_data *lis2mdl = dev->data;
+	const struct lis2mdl_config *const config = dev->config;
 	struct sensor_trigger drdy_trigger = {
 		.type = SENSOR_TRIG_DATA_READY,
 	};
@@ -69,11 +68,11 @@ static void lis2mdl_handle_interrupt(void *arg)
 }
 
 static void lis2mdl_gpio_callback(struct device *dev,
-				    struct gpio_callback *cb, u32_t pins)
+				    struct gpio_callback *cb, uint32_t pins)
 {
 	struct lis2mdl_data *lis2mdl =
 		CONTAINER_OF(cb, struct lis2mdl_data, gpio_cb);
-	const struct lis2mdl_config *const config = dev->config_info;
+	const struct lis2mdl_config *const config = lis2mdl->dev->config;
 
 	ARG_UNUSED(pins);
 
@@ -90,7 +89,7 @@ static void lis2mdl_gpio_callback(struct device *dev,
 static void lis2mdl_thread(int dev_ptr, int unused)
 {
 	struct device *dev = INT_TO_POINTER(dev_ptr);
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
+	struct lis2mdl_data *lis2mdl = dev->data;
 
 	ARG_UNUSED(unused);
 
@@ -113,8 +112,8 @@ static void lis2mdl_work_cb(struct k_work *work)
 
 int lis2mdl_init_interrupt(struct device *dev)
 {
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
-	const struct lis2mdl_config *const config = dev->config_info;
+	struct lis2mdl_data *lis2mdl = dev->data;
+	const struct lis2mdl_config *const config = dev->config;
 
 	/* setup data ready gpio interrupt */
 	lis2mdl->gpio = device_get_binding(config->gpio_name);
@@ -123,6 +122,7 @@ int lis2mdl_init_interrupt(struct device *dev)
 			    config->gpio_name);
 		return -EINVAL;
 	}
+	lis2mdl->dev = dev;
 
 #if defined(CONFIG_LIS2MDL_TRIGGER_OWN_THREAD)
 	k_sem_init(&lis2mdl->gpio_sem, 0, UINT_MAX);
@@ -133,7 +133,6 @@ int lis2mdl_init_interrupt(struct device *dev)
 			0, K_NO_WAIT);
 #elif defined(CONFIG_LIS2MDL_TRIGGER_GLOBAL_THREAD)
 	lis2mdl->work.handler = lis2mdl_work_cb;
-	lis2mdl->dev = dev;
 #endif
 
 	gpio_pin_configure(lis2mdl->gpio, config->gpio_pin,

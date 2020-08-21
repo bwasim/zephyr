@@ -7,7 +7,6 @@
 #include <zephyr.h>
 #include <kernel.h>
 #include <string.h>
-#include <soc.h>
 #include <device.h>
 #include "policy/pm_policy.h"
 
@@ -45,12 +44,17 @@ static const char *const core_devices[] = {
 static const char *const core_devices[] = {
 	"",
 };
+#elif defined(CONFIG_SOC_SERIES_STM32L4X) || defined(CONFIG_SOC_SERIES_STM32WBX)
+#define MAX_PM_DEVICES	1
+static const char *const core_devices[] = {
+	"sys_clock",
+};
 #else
 #error "Add SoC's core devices list for PM"
 #endif
 
 /* Ordinal of sufficient size to index available devices. */
-typedef u16_t device_idx_t;
+typedef uint16_t device_idx_t;
 
 /* The maximum value representable with a device_idx_t. */
 #define DEVICE_IDX_MAX ((device_idx_t)(-1))
@@ -69,7 +73,7 @@ static device_idx_t num_pm;
 /* Number of devices successfully suspended. */
 static device_idx_t num_susp;
 
-const char *device_pm_state_str(u32_t state)
+const char *device_pm_state_str(uint32_t state)
 {
 	switch (state) {
 	case DEVICE_PM_ACTIVE_STATE:
@@ -87,7 +91,7 @@ const char *device_pm_state_str(u32_t state)
 	}
 }
 
-static int _sys_pm_devices(u32_t state)
+static int _sys_pm_devices(uint32_t state)
 {
 	num_susp = 0;
 
@@ -144,7 +148,7 @@ void sys_pm_resume_devices(void)
 
 void sys_pm_create_device_list(void)
 {
-	int count;
+	size_t count = z_device_get_all_static(&all_devices);
 	device_idx_t pmi;
 
 	/*
@@ -152,9 +156,8 @@ void sys_pm_create_device_list(void)
 	 * Ordering should be done based on dependencies. Devices
 	 * in the beginning of the list will be resumed first.
 	 */
-	device_list_get(&all_devices, &count);
 
-	__ASSERT_NO_MSG((0 <= count) && (count <= DEVICE_IDX_MAX));
+	__ASSERT_NO_MSG(count <= DEVICE_IDX_MAX);
 
 	/* Reserve initial slots for core devices. */
 	num_pm = ARRAY_SIZE(core_devices);

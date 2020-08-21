@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <logging/log.h>
-LOG_MODULE_REGISTER(wifi_eswifi, CONFIG_WIFI_LOG_LEVEL);
+#include "eswifi_log.h"
+LOG_MODULE_DECLARE(LOG_MODULE_NAME);
 
 #include <zephyr.h>
 #include <kernel.h>
@@ -160,6 +160,14 @@ int __eswifi_off_start_client(struct eswifi_dev *eswifi,
 
 	__select_socket(eswifi, socket->index);
 
+	/* Stop any running client */
+	snprintk(eswifi->buf, sizeof(eswifi->buf), "P6=0\r");
+	err = eswifi_at_cmd(eswifi, eswifi->buf);
+	if (err < 0) {
+		LOG_ERR("Unable to stop running client");
+		return -EIO;
+	}
+
 	/* Set Remote IP */
 	snprintk(eswifi->buf, sizeof(eswifi->buf), "P3=%u.%u.%u.%u\r",
 		 sin_addr->s4_addr[0], sin_addr->s4_addr[1],
@@ -173,7 +181,7 @@ int __eswifi_off_start_client(struct eswifi_dev *eswifi,
 
 	/* Set Remote Port */
 	snprintk(eswifi->buf, sizeof(eswifi->buf), "P4=%d\r",
-		(u16_t)sys_be16_to_cpu(net_sin(addr)->sin_port));
+		(uint16_t)sys_be16_to_cpu(net_sin(addr)->sin_port));
 	err = eswifi_at_cmd(eswifi, eswifi->buf);
 	if (err < 0) {
 		LOG_ERR("Unable to set remote port");

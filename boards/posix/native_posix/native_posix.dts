@@ -30,6 +30,7 @@
 
 		#address-cells = <1>;
 		#size-cells = <1>;
+		erase-value = <0xff>;
 
 		label = "flash_ctrl";
 
@@ -91,6 +92,12 @@
 		status = "okay";
 		compatible = "zephyr,native-posix-rng";
 		label = "ENTROPY_0";
+	};
+
+	counter0: counter {
+		status = "okay";
+		compatible = "zephyr,native-posix-counter";
+		label = "COUNTER_0";
 	};
 
 };

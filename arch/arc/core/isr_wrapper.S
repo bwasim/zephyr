@@ -205,17 +205,17 @@ SECTION_FUNC(TEXT, _isr_wrapper)
 #if CONFIG_RGF_NUM_BANKS == 1
 /* free r0 here, use r0 to check whether irq is firq.
  * for rirq,  as sp will not change and r0 already saved, this action
- * in fact is an action like nop.
+ * in fact is useless
  * for firq,  r0 will be restored later
  */
-	st_s r0, [sp]
+	push r0
 #endif
 	lr r0, [_ARC_V2_AUX_IRQ_ACT]
 	ffs r0, r0
 	cmp r0, 0
 #if CONFIG_RGF_NUM_BANKS == 1
 	bnz rirq_path
-	ld_s r0, [sp]
+	pop r0
 	/* 1-register bank FIRQ handling must save registers on stack */
 	_create_irq_stack_frame
 	lr r0, [_ARC_V2_STATUS32_P0]
@@ -227,6 +227,7 @@ SECTION_FUNC(TEXT, _isr_wrapper)
 	mov_s r2, _firq_enter
 	j_s [r2]
 rirq_path:
+	add sp, sp, 4
 	mov_s r3, _rirq_exit
 	mov_s r2, _rirq_enter
 	j_s [r2]
@@ -243,8 +244,8 @@ rirq_path:
 	j_s [r2]
 #endif
 
-#if defined(CONFIG_SYS_POWER_MANAGEMENT)
 .macro exit_tickless_idle
+#if defined(CONFIG_SYS_POWER_MANAGEMENT)
 	clri r0 /* do not interrupt exiting tickless idle operations */
 	mov_s r1, _kernel
 	ld_s r0, [r1, _kernel_offset_to_idle] /* requested idle duration */
@@ -257,10 +258,8 @@ rirq_path:
 
 _skip_sys_power_save_idle_exit:
 	seti r0
-.endm
-#else
-	#define exit_tickless_idle
 #endif
+.endm
 
 /* when getting here, r3 contains the interrupt exit stub to call */
 SECTION_FUNC(TEXT, _isr_demux)

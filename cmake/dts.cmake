@@ -17,6 +17,13 @@ file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/include/generated)
 # See the Devicetree user guide in the Zephyr documentation for details.
 set(GEN_DEFINES_SCRIPT          ${ZEPHYR_BASE}/scripts/dts/gen_defines.py)
 set(ZEPHYR_DTS                  ${PROJECT_BINARY_DIR}/zephyr.dts)
+# This contains the edtlib.EDT object created from zephyr.dts in Python's
+# pickle data marshalling format (https://docs.python.org/3/library/pickle.html)
+#
+# Its existence is an implementation detail used to speed up further
+# use of the devicetree by processes that run later on in the build,
+# and should not be made part of the documentation.
+set(EDT_PICKLE                  ${PROJECT_BINARY_DIR}/edt.pickle)
 set(DEVICETREE_UNFIXED_H        ${PROJECT_BINARY_DIR}/include/generated/devicetree_unfixed.h)
 set(DEVICETREE_UNFIXED_LEGACY_H ${PROJECT_BINARY_DIR}/include/generated/devicetree_legacy_unfixed.h)
 set(DTS_POST_CPP                ${PROJECT_BINARY_DIR}/${BOARD}.dts.pre.tmp)
@@ -197,7 +204,7 @@ if(SUPPORTS_DTS)
   endif(DTC)
 
   #
-  # Run gen_defines.py to create a header file and zephyr.dts.
+  # Run gen_defines.py to create a header file, zephyr.dts, and edt.pickle.
   #
 
   set(CMD_EXTRACT ${PYTHON_EXECUTABLE} ${GEN_DEFINES_SCRIPT}
@@ -206,6 +213,7 @@ if(SUPPORTS_DTS)
   --bindings-dirs ${DTS_ROOT_BINDINGS}
   --header-out ${DEVICETREE_UNFIXED_H}
   --dts-out ${ZEPHYR_DTS} # As a debugging aid
+  --edt-pickle-out ${EDT_PICKLE}
   )
 
   #
@@ -214,9 +222,7 @@ if(SUPPORTS_DTS)
   #
 
   set(CMD_LEGACY_EXTRACT ${PYTHON_EXECUTABLE} ${ZEPHYR_BASE}/scripts/dts/gen_legacy_defines.py
-  --dts ${BOARD}.dts.pre.tmp
-  --dtc-flags '${EXTRA_DTC_FLAGS}'
-  --bindings-dirs ${DTS_ROOT_BINDINGS}
+  --edt-pickle ${EDT_PICKLE}
   --header-out ${DEVICETREE_UNFIXED_LEGACY_H}
   )
 

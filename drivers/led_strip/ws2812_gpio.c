@@ -24,22 +24,21 @@ LOG_MODULE_REGISTER(ws2812_gpio);
 
 struct ws2812_gpio_data {
 	struct device *gpio;
-	struct device *clk;
 };
 
 struct ws2812_gpio_cfg {
-	u8_t pin;
+	uint8_t pin;
 	bool has_white;
 };
 
 static struct ws2812_gpio_data *dev_data(struct device *dev)
 {
-	return dev->driver_data;
+	return dev->data;
 }
 
 static const struct ws2812_gpio_cfg *dev_cfg(struct device *dev)
 {
-	return dev->config_info;
+	return dev->config;
 }
 
 /*
@@ -99,24 +98,31 @@ static const struct ws2812_gpio_cfg *dev_cfg(struct device *dev)
 			[r] "l" (base),		\
 			[p] "l" (pin)); } while (0)
 
-static int send_buf(struct device *dev, u8_t *buf, size_t len)
+static int send_buf(struct device *dev, uint8_t *buf, size_t len)
 {
-	volatile u32_t *base = (u32_t *)&NRF_GPIO->OUTSET;
-	const u32_t val = BIT(dev_cfg(dev)->pin);
-	struct device *clk = dev_data(dev)->clk;
+	volatile uint32_t *base = (uint32_t *)&NRF_GPIO->OUTSET;
+	const uint32_t val = BIT(dev_cfg(dev)->pin);
+	struct onoff_manager *mgr =
+		z_nrf_clock_control_get_onoff(CLOCK_CONTROL_NRF_SUBSYS_HF);
+	struct onoff_client cli;
 	unsigned int key;
 	int rc;
 
-	rc = clock_control_on(clk, CLOCK_CONTROL_NRF_SUBSYS_HF);
-	if (rc) {
+	sys_notify_init_spinwait(&cli.notify);
+	rc = onoff_request(mgr, &cli);
+	if (rc < 0) {
 		return rc;
+	}
+
+	while (sys_notify_fetch_result(&cli.notify, &rc)) {
+		/* pend until clock is up and running */
 	}
 
 	key = irq_lock();
 
 	while (len--) {
-		u32_t b = *buf++;
-		s32_t i;
+		uint32_t b = *buf++;
+		int32_t i;
 
 		/*
 		 * Generate signal out of the bits, MSbit first.
@@ -140,7 +146,9 @@ static int send_buf(struct device *dev, u8_t *buf, size_t len)
 
 	irq_unlock(key);
 
-	rc = clock_control_off(clk, CLOCK_CONTROL_NRF_SUBSYS_HF);
+	rc = onoff_release(mgr);
+	/* Returns non-negative value on success. Cap to 0 as API states. */
+	rc = MIN(rc, 0);
 
 	return rc;
 }
@@ -148,16 +156,16 @@ static int send_buf(struct device *dev, u8_t *buf, size_t len)
 static int ws2812_gpio_update_rgb(struct device *dev, struct led_rgb *pixels,
 				  size_t num_pixels)
 {
-	const struct ws2812_gpio_cfg *config = dev->config_info;
+	const struct ws2812_gpio_cfg *config = dev->config;
 	const bool has_white = config->has_white;
-	u8_t *ptr = (u8_t *)pixels;
+	uint8_t *ptr = (uint8_t *)pixels;
 	size_t i;
 
 	/* Convert from RGB to on-wire format (GRB or GRBW) */
 	for (i = 0; i < num_pixels; i++) {
-		u8_t r = pixels[i].r;
-		u8_t g = pixels[i].g;
-		u8_t b = pixels[i].b;
+		uint8_t r = pixels[i].r;
+		uint8_t g = pixels[i].g;
+		uint8_t b = pixels[i].b;
 
 		*ptr++ = g;
 		*ptr++ = r;
@@ -167,10 +175,10 @@ static int ws2812_gpio_update_rgb(struct device *dev, struct led_rgb *pixels,
 		}
 	}
 
-	return send_buf(dev, (u8_t *)pixels, num_pixels * (has_white ? 4 : 3));
+	return send_buf(dev, (uint8_t *)pixels, num_pixels * (has_white ? 4 : 3));
 }
 
-static int ws2812_gpio_update_channels(struct device *dev, u8_t *channels,
+static int ws2812_gpio_update_channels(struct device *dev, uint8_t *channels,
 				       size_t num_channels)
 {
 	LOG_ERR("update_channels not implemented");
@@ -210,13 +218,6 @@ static const struct led_strip_driver_api ws2812_gpio_api = {
 		if (!data->gpio) {					\
 			LOG_ERR("Unable to find GPIO controller %s",	\
 				WS2812_GPIO_DEV(idx));			\
-			return -ENODEV;				\
-		}							\
-									\
-		data->clk = device_get_binding(WS2812_GPIO_CLK(idx));	\
-		if (!data->clk) {					\
-			LOG_ERR("Unable to find clock %s",		\
-				WS2812_GPIO_CLK(idx));			\
 			return -ENODEV;				\
 		}							\
 									\

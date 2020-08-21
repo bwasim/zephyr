@@ -195,7 +195,7 @@ a read-write partition for it which may be added to a domain:
 
 .. code-block:: c
 
-    u8_t __aligned(32) buf[32];
+    uint8_t __aligned(32) buf[32];
 
     K_MEM_PARTITION_DEFINE(my_partition, buf, sizeof(buf),
                            K_MEM_PARTITION_P_RW_U_RW);
@@ -324,7 +324,7 @@ Create a Memory Domain
 ----------------------
 
 A memory domain is defined using a variable of type
-:c:type:`struct k_mem_domain`. It must then be initialized by calling
+:c:type:`k_mem_domain`. It must then be initialized by calling
 :cpp:func:`k_mem_domain_init()`.
 
 The following code defines and initializes an empty memory domain.
@@ -346,8 +346,8 @@ a memory domain.
 .. code-block:: c
 
     /* the start address of the MPU region needs to align with its size */
-    u8_t __aligned(32) app0_buf[32];
-    u8_t __aligned(32) app1_buf[32];
+    uint8_t __aligned(32) app0_buf[32];
+    uint8_t __aligned(32) app1_buf[32];
 
     K_MEM_PARTITION_DEFINE(app0_part0, app0_buf, sizeof(app0_buf),
                            K_MEM_PARTITION_P_RW_U_RW);
@@ -368,8 +368,8 @@ memory domain one by one.
 .. code-block:: c
 
     /* the start address of the MPU region needs to align with its size */
-    u8_t __aligned(32) app0_buf[32];
-    u8_t __aligned(32) app1_buf[32];
+    uint8_t __aligned(32) app0_buf[32];
+    uint8_t __aligned(32) app1_buf[32];
 
     K_MEM_PARTITION_DEFINE(app0_part0, app0_buf, sizeof(app0_buf),
                            K_MEM_PARTITION_P_RW_U_RW);

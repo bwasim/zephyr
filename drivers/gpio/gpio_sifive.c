@@ -47,7 +47,7 @@ struct gpio_sifive_config {
 	struct gpio_driver_config common;
 	uintptr_t            gpio_base_addr;
 	/* multi-level encoded interrupt corresponding to pin 0 */
-	u32_t                gpio_irq_base;
+	uint32_t                gpio_irq_base;
 	sifive_cfg_func_t    gpio_cfg_func;
 };
 
@@ -60,11 +60,11 @@ struct gpio_sifive_data {
 
 /* Helper Macros for GPIO */
 #define DEV_GPIO_CFG(dev)						\
-	((const struct gpio_sifive_config * const)(dev)->config_info)
+	((const struct gpio_sifive_config * const)(dev)->config)
 #define DEV_GPIO(dev)							\
 	((volatile struct gpio_sifive_t *)(DEV_GPIO_CFG(dev))->gpio_base_addr)
 #define DEV_GPIO_DATA(dev)				\
-	((struct gpio_sifive_data *)(dev)->driver_data)
+	((struct gpio_sifive_data *)(dev)->data)
 
 /* _irq_level and _level2_irq are copied from
  * soc/riscv/riscv-privileged/common/soc_common_irq.c
@@ -120,7 +120,7 @@ static void gpio_sifive_irq_handler(void *arg)
 	const struct gpio_sifive_config *cfg = DEV_GPIO_CFG(dev);
 
 	/* Calculate pin and mask from base level 2 line */
-	u8_t pin = 1 + (riscv_plic_get_irq() - (u8_t)(cfg->gpio_irq_base >> 8));
+	uint8_t pin = 1 + (riscv_plic_get_irq() - (uint8_t)(cfg->gpio_irq_base >> 8));
 
 	/* This peripheral tracks each condition separately: a
 	 * transition from low to high will mark the pending bit for
@@ -304,36 +304,6 @@ static int gpio_sifive_manage_callback(struct device *dev,
 	return gpio_manage_callback(&data->cb, callback, set);
 }
 
-static int gpio_sifive_enable_callback(struct device *dev,
-				      gpio_pin_t pin)
-{
-	const struct gpio_sifive_config *cfg = DEV_GPIO_CFG(dev);
-
-	if (pin >= SIFIVE_PINMUX_PINS) {
-		return -EINVAL;
-	}
-
-	/* Enable interrupt for the pin at PLIC (level 2) */
-	irq_enable(cfg->gpio_irq_base + (pin << 8));
-
-	return 0;
-}
-
-static int gpio_sifive_disable_callback(struct device *dev,
-				       gpio_pin_t pin)
-{
-	const struct gpio_sifive_config *cfg = DEV_GPIO_CFG(dev);
-
-	if (pin >= SIFIVE_PINMUX_PINS) {
-		return -EINVAL;
-	}
-
-	/* Disable interrupt for the pin at PLIC (level 2) */
-	irq_disable(cfg->gpio_irq_base + (pin << 8));
-
-	return 0;
-}
-
 static const struct gpio_driver_api gpio_sifive_driver = {
 	.pin_configure           = gpio_sifive_config,
 	.port_get_raw            = gpio_sifive_port_get_raw,
@@ -343,8 +313,6 @@ static const struct gpio_driver_api gpio_sifive_driver = {
 	.port_toggle_bits        = gpio_sifive_port_toggle_bits,
 	.pin_interrupt_configure = gpio_sifive_pin_interrupt_configure,
 	.manage_callback         = gpio_sifive_manage_callback,
-	.enable_callback         = gpio_sifive_enable_callback,
-	.disable_callback        = gpio_sifive_disable_callback,
 };
 
 /**

@@ -19,9 +19,9 @@
 
 LOG_MODULE_REGISTER(TH02, CONFIG_SENSOR_LOG_LEVEL);
 
-static u8_t read8(struct device *dev, u8_t d)
+static uint8_t read8(struct device *dev, uint8_t d)
 {
-	u8_t buf;
+	uint8_t buf;
 
 	if (i2c_reg_read_byte(dev, TH02_I2C_DEV_ID, d, &buf) < 0) {
 		LOG_ERR("Error reading register.");
@@ -32,7 +32,7 @@ static u8_t read8(struct device *dev, u8_t d)
 static int is_ready(struct device *dev)
 {
 
-	u8_t status;
+	uint8_t status;
 
 	if (i2c_reg_read_byte(dev, TH02_I2C_DEV_ID,
 			      TH02_REG_STATUS, &status) < 0) {
@@ -46,9 +46,9 @@ static int is_ready(struct device *dev)
 	}
 }
 
-static u16_t get_humi(struct device *dev)
+static uint16_t get_humi(struct device *dev)
 {
-	u16_t humidity = 0U;
+	uint16_t humidity = 0U;
 
 	if (i2c_reg_write_byte(dev, TH02_I2C_DEV_ID,
 			       TH02_REG_CONFIG, TH02_CMD_MEASURE_HUMI) < 0) {
@@ -65,9 +65,9 @@ static u16_t get_humi(struct device *dev)
 	return humidity;
 }
 
-u16_t get_temp(struct device *dev)
+uint16_t get_temp(struct device *dev)
 {
-	u16_t temperature = 0U;
+	uint16_t temperature = 0U;
 
 	if (i2c_reg_write_byte(dev, TH02_I2C_DEV_ID,
 			       TH02_REG_CONFIG, TH02_CMD_MEASURE_TEMP) < 0) {
@@ -86,7 +86,7 @@ u16_t get_temp(struct device *dev)
 
 static int th02_sample_fetch(struct device *dev, enum sensor_channel chan)
 {
-	struct th02_data *drv_data = dev->driver_data;
+	struct th02_data *drv_data = dev->data;
 
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL || chan == SENSOR_CHAN_AMBIENT_TEMP);
 
@@ -101,7 +101,7 @@ static int th02_sample_fetch(struct device *dev, enum sensor_channel chan)
 static int th02_channel_get(struct device *dev, enum sensor_channel chan,
 			    struct sensor_value *val)
 {
-	struct th02_data *drv_data = dev->driver_data;
+	struct th02_data *drv_data = dev->data;
 
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_AMBIENT_TEMP ||
 			chan == SENSOR_CHAN_HUMIDITY);
@@ -126,7 +126,7 @@ static const struct sensor_driver_api th02_driver_api = {
 
 static int th02_init(struct device *dev)
 {
-	struct th02_data *drv_data = dev->driver_data;
+	struct th02_data *drv_data = dev->data;
 
 	drv_data->i2c = device_get_binding(DT_INST_BUS_LABEL(0));
 	if (drv_data->i2c == NULL) {

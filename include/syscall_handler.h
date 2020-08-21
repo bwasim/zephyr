@@ -26,6 +26,38 @@ enum _obj_init_check {
 };
 
 /**
+ * Return true if we are currently handling a system call from user mode
+ *
+ * Inside z_vrfy functions, we always know that we are handling
+ * a system call invoked from user context.
+ *
+ * However, some checks that are only relevant to user mode must
+ * instead be placed deeper within the implementation. This
+ * API is useful to conditionally make these checks.
+ *
+ * For performance reasons, whenever possible, checks should be placed
+ * in the relevant z_vrfy function since these are completely skipped
+ * when a syscall is invoked.
+ *
+ * This will return true only if we are handling a syscall for a
+ * user thread. If the system call was invoked from supervisor mode,
+ * or we are not handling a system call, this will return false.
+ *
+ * @return whether the current context is handling a syscall for a user
+ *         mode thread
+ */
+static inline bool z_is_in_user_syscall(void)
+{
+	/* This gets set on entry to the syscall's generasted z_mrsh
+	 * function and then cleared on exit. This code path is only
+	 * encountered when a syscall is made from user mode, system
+	 * calls from supervisor mode bypass everything directly to
+	 * the implementation function.
+	 */
+	return !k_is_in_isr() && _current->syscall_frame != NULL;
+}
+
+/**
  * Ensure a system object is a valid object of the expected type
  *
  * Searches for the object and ensures that it is indeed an object
@@ -430,7 +462,7 @@ static inline int z_obj_validation_check(struct z_object *ko,
 #define Z_SYSCALL_DRIVER_OP(ptr, api_name, op) \
 	({ \
 		struct api_name *__device__ = (struct api_name *) \
-			((struct device *)ptr)->driver_api; \
+			((struct device *)ptr)->api; \
 		Z_SYSCALL_VERIFY_MSG(__device__->op != NULL, \
 				    "Operation %s not defined for driver " \
 				    "instance %p", \
@@ -459,7 +491,7 @@ static inline int z_obj_validation_check(struct z_object *ko,
 	({ \
 		struct device *_dev = (struct device *)_device; \
 		Z_SYSCALL_OBJ(_dev, _dtype) || \
-			Z_SYSCALL_VERIFY_MSG(_dev->driver_api == _api, \
+			Z_SYSCALL_VERIFY_MSG(_dev->api == _api, \
 					     "API structure mismatch"); \
 	})
 

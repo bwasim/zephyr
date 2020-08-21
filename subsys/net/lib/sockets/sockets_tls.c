@@ -16,6 +16,7 @@ LOG_MODULE_REGISTER(net_sock_tls, CONFIG_NET_SOCKETS_LOG_LEVEL);
 #include <sys/util.h>
 #include <net/net_context.h>
 #include <net/socket.h>
+#include <random/rand32.h>
 #include <syscall_handler.h>
 #include <sys/fdtable.h>
 
@@ -55,17 +56,17 @@ struct sec_tag_list {
 /** Timer context for DTLS. */
 struct dtls_timing_context {
 	/** Current time, stored during timer set. */
-	u32_t snapshot;
+	uint32_t snapshot;
 
 	/** Intermediate delay value. For details, refer to mbedTLS API
 	 *  documentation (mbedtls_ssl_set_timer_t).
 	 */
-	u32_t int_ms;
+	uint32_t int_ms;
 
 	/** Final delay value. For details, refer to mbedTLS API documentation
 	 *  (mbedtls_ssl_set_timer_t).
 	 */
-	u32_t fin_ms;
+	uint32_t fin_ms;
 };
 
 /** TLS context information. */
@@ -98,10 +99,10 @@ struct tls_context {
 		bool is_hostname_set;
 
 		/** Peer verification level. */
-		s8_t verify_level;
+		int8_t verify_level;
 
 		/** DTLS role, client by default. */
-		s8_t role;
+		int8_t role;
 	} options;
 
 #if defined(CONFIG_NET_SOCKETS_ENABLE_DTLS)
@@ -185,11 +186,11 @@ static int tls_entropy_func(void *ctx, unsigned char *buf, size_t len)
 	ARG_UNUSED(ctx);
 
 	size_t i = len / 4;
-	u32_t val;
+	uint32_t val;
 
 	while (i--) {
 		val = sys_rand32_get();
-		UNALIGNED_PUT(val, (u32_t *)buf);
+		UNALIGNED_PUT(val, (uint32_t *)buf);
 		buf += 4;
 	}
 
@@ -399,9 +400,9 @@ static int tls_release(struct tls_context *tls)
 	return 0;
 }
 
-static inline int time_left(u32_t start, u32_t timeout)
+static inline int time_left(uint32_t start, uint32_t timeout)
 {
-	u32_t elapsed = k_uptime_get_32() - start;
+	uint32_t elapsed = k_uptime_get_32() - start;
 
 	return timeout - elapsed;
 }
@@ -483,7 +484,7 @@ static int dtls_rx(void *ctx, unsigned char *buf, size_t len,
 			  sock_is_nonblock(net_ctx));
 	k_timeout_t timeout = (dtls_timeout == 0U) ? K_FOREVER :
 						     K_MSEC(dtls_timeout);
-	u64_t end = z_timeout_end_calc(timeout);
+	uint64_t end = z_timeout_end_calc(timeout);
 	socklen_t addrlen = sizeof(struct sockaddr);
 	struct sockaddr addr;
 	int err;
@@ -543,7 +544,7 @@ static int dtls_rx(void *ctx, unsigned char *buf, size_t len,
 
 			if (!K_TIMEOUT_EQ(timeout, K_FOREVER)) {
 				/* Recalculate the timeout value. */
-				s64_t remaining = end - z_tick_get();
+				int64_t remaining = end - z_tick_get();
 
 				if (remaining <= 0) {
 					return MBEDTLS_ERR_SSL_TIMEOUT;
@@ -1159,13 +1160,6 @@ static int ztls_socket(int family, int type, int proto)
 	/* recv_q and accept_q are in union */
 	k_fifo_init(&ctx->recv_q);
 
-#ifdef CONFIG_USERSPACE
-	/* Set net context object as initialized and grant access to the
-	 * calling thread (and only the calling thread)
-	 */
-	z_object_recycle(ctx);
-#endif
-
 	if (tls_proto != 0) {
 		/* If TLS protocol is used, allocate TLS context */
 		ctx->tls = tls_alloc();
@@ -1204,7 +1198,7 @@ int ztls_close_ctx(struct net_context *ctx)
 		err = -EBADF;
 	}
 
-	ret = z_fdtable_call_ioctl(&sock_fd_op_vtable.fd_vtable, ctx, ZFD_IOCTL_CLOSE);
+	ret = sock_fd_op_vtable.fd_vtable.close(ctx);
 
 	/* In case close fails, we propagate errno value set by close.
 	 * In case close succeeds, but tls_release fails, set errno
@@ -1284,10 +1278,14 @@ int ztls_accept_ctx(struct net_context *parent, struct sockaddr *addr,
 	}
 
 	child = k_fifo_get(&parent->accept_q, K_FOREVER);
-
-	#ifdef CONFIG_USERSPACE
-		z_object_recycle(child);
-	#endif
+	if (child == NULL) {
+		z_free_fd(fd);
+		/* Return EINVAL which is the same error code used under Linux
+		 * when calling shutdown on a blocked accept call
+		 */
+		errno = EINVAL;
+		return -1;
+	}
 
 	if (addr != NULL && addrlen != NULL) {
 		int len = MIN(*addrlen, sizeof(child->remote));
@@ -1342,7 +1340,7 @@ error:
 		__ASSERT(err == 0, "TLS context release failed");
 	}
 
-	err = z_fdtable_call_ioctl(&sock_fd_op_vtable.fd_vtable, child, ZFD_IOCTL_CLOSE);
+	err = sock_fd_op_vtable.fd_vtable.close(child);
 	__ASSERT(err == 0, "Child socket close failed");
 
 	z_free_fd(fd);
@@ -1954,12 +1952,8 @@ static int tls_sock_ioctl_vmeth(void *obj, unsigned int request, va_list args)
 	/* fcntl() commands */
 	case F_GETFL:
 	case F_SETFL:
-	case ZFD_IOCTL_GETSOCKNAME:
 		/* Pass the call to the core socket implementation. */
 		return sock_fd_op_vtable.fd_vtable.ioctl(obj, request, args);
-
-	case ZFD_IOCTL_CLOSE:
-		return ztls_close_ctx(obj);
 
 	case ZFD_IOCTL_POLL_PREPARE: {
 		struct zsock_pollfd *pfd;
@@ -2046,11 +2040,23 @@ static int tls_sock_setsockopt_vmeth(void *obj, int level, int optname,
 	return ztls_setsockopt_ctx(obj, level, optname, optval, optlen);
 }
 
+static int tls_sock_close_vmeth(void *obj)
+{
+	return ztls_close_ctx(obj);
+}
+
+static int tls_sock_getsockname_vmeth(void *obj, struct sockaddr *addr,
+				      socklen_t *addrlen)
+{
+	/* Pass the call to the core socket implementation. */
+	return sock_fd_op_vtable.getsockname(obj, addr, addrlen);
+}
 
 static const struct socket_op_vtable tls_sock_fd_op_vtable = {
 	.fd_vtable = {
 		.read = tls_sock_read_vmeth,
 		.write = tls_sock_write_vmeth,
+		.close = tls_sock_close_vmeth,
 		.ioctl = tls_sock_ioctl_vmeth,
 	},
 	.bind = tls_sock_bind_vmeth,
@@ -2062,6 +2068,7 @@ static const struct socket_op_vtable tls_sock_fd_op_vtable = {
 	.recvfrom = tls_sock_recvfrom_vmeth,
 	.getsockopt = tls_sock_getsockopt_vmeth,
 	.setsockopt = tls_sock_setsockopt_vmeth,
+	.getsockname = tls_sock_getsockname_vmeth,
 };
 
 static bool tls_is_supported(int family, int type, int proto)

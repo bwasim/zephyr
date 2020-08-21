@@ -13,7 +13,7 @@
 #include <logging/log.h>
 LOG_MODULE_DECLARE(can_driver, CONFIG_CAN_LOG_LEVEL);
 
-K_THREAD_STACK_DEFINE(tx_thread_stack,
+K_KERNEL_STACK_DEFINE(tx_thread_stack,
 		      CONFIG_CAN_LOOPBACK_TX_THREAD_STACK_SIZE);
 struct k_thread tx_thread_data;
 
@@ -46,7 +46,7 @@ static void dispatch_frame(const struct zcan_frame *frame,
 static inline int check_filter_match(const struct zcan_frame *frame,
 				     const struct zcan_filter *filter)
 {
-	u32_t id, mask, frame_id;
+	uint32_t id, mask, frame_id;
 
 	frame_id = frame->id_type == CAN_STANDARD_IDENTIFIER ?
 			frame->std_id : frame->ext_id;
@@ -193,7 +193,7 @@ void can_loopback_detach(struct device *dev, int filter_id)
 }
 
 int can_loopback_configure(struct device *dev, enum can_mode mode,
-				u32_t bitrate)
+				uint32_t bitrate)
 {
 	struct can_loopback_data *data = DEV_DATA(dev);
 
@@ -258,7 +258,7 @@ static int can_loopback_init(struct device *dev)
 	}
 
 	tx_tid = k_thread_create(&tx_thread_data, tx_thread_stack,
-				 K_THREAD_STACK_SIZEOF(tx_thread_stack),
+				 K_KERNEL_STACK_SIZEOF(tx_thread_stack),
 				 tx_thread, data, NULL, NULL,
 				 CONFIG_CAN_LOOPBACK_TX_THREAD_PRIORITY,
 				 0, K_NO_WAIT);
@@ -288,7 +288,7 @@ DEVICE_AND_API_INIT(can_loopback_1, CONFIG_CAN_LOOPBACK_DEV_NAME,
 static int socket_can_init_1(struct device *dev)
 {
 	struct device *can_dev = DEVICE_GET(can_loopback_1);
-	struct socket_can_context *socket_context = dev->driver_data;
+	struct socket_can_context *socket_context = dev->data;
 
 	LOG_DBG("Init socket CAN device %p (%s) for dev %p (%s)",
 		dev, dev->name, can_dev, can_dev->name);
@@ -299,7 +299,7 @@ static int socket_can_init_1(struct device *dev)
 	socket_context->rx_tid =
 		k_thread_create(&socket_context->rx_thread_data,
 				rx_thread_stack,
-				K_THREAD_STACK_SIZEOF(rx_thread_stack),
+				K_KERNEL_STACK_SIZEOF(rx_thread_stack),
 				rx_thread, socket_context, NULL, NULL,
 				RX_THREAD_PRIORITY, 0, K_NO_WAIT);
 

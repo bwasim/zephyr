@@ -45,10 +45,10 @@ extern "C" {
  *    of the first pixel of the next row (>=width).
  */
 struct video_format {
-	u32_t pixelformat;
-	u32_t width;
-	u32_t height;
-	u32_t pitch;
+	uint32_t pixelformat;
+	uint32_t width;
+	uint32_t height;
+	uint32_t pitch;
 };
 
 /**
@@ -65,13 +65,13 @@ struct video_format {
  * @param height_step is the height step size.
  */
 struct video_format_cap {
-	u32_t pixelformat;
-	u32_t width_min;
-	u32_t width_max;
-	u32_t height_min;
-	u32_t height_max;
-	u16_t width_step;
-	u16_t height_step;
+	uint32_t pixelformat;
+	uint32_t width_min;
+	uint32_t width_max;
+	uint32_t height_min;
+	uint32_t height_max;
+	uint16_t width_step;
+	uint16_t height_step;
 };
 
 /**
@@ -85,7 +85,7 @@ struct video_format_cap {
  */
 struct video_caps {
 	const struct video_format_cap *format_caps;
-	u8_t min_vbuf_count;
+	uint8_t min_vbuf_count;
 };
 
 /**
@@ -104,10 +104,10 @@ struct video_caps {
  */
 struct video_buffer {
 	void *driver_data;
-	u8_t *buffer;
-	u32_t size;
-	u32_t bytesused;
-	u32_t timestamp;
+	uint8_t *buffer;
+	uint32_t size;
+	uint32_t bytesused;
+	uint32_t timestamp;
 };
 
 /**
@@ -261,7 +261,7 @@ static inline int video_set_format(struct device *dev,
 				   struct video_format *fmt)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	__ASSERT(api->set_format, "set_format must be implemented by driver");
 
@@ -284,7 +284,7 @@ static inline int video_get_format(struct device *dev,
 				   struct video_format *fmt)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	__ASSERT(api->get_format, "get_format must be implemented by driver");
 
@@ -309,7 +309,7 @@ static inline int video_enqueue(struct device *dev, enum video_endpoint_id ep,
 				struct video_buffer *buf)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	if (api->enqueue == NULL) {
 		return -ENOTSUP;
@@ -338,7 +338,7 @@ static inline int video_dequeue(struct device *dev, enum video_endpoint_id ep,
 				k_timeout_t timeout)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	if (api->dequeue == NULL) {
 		return -ENOTSUP;
@@ -366,7 +366,7 @@ static inline int video_flush(struct device *dev, enum video_endpoint_id ep,
 			      bool cancel)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	if (api->flush == NULL) {
 		return -ENOTSUP;
@@ -390,7 +390,7 @@ static inline int video_flush(struct device *dev, enum video_endpoint_id ep,
 static inline int video_stream_start(struct device *dev)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	__ASSERT(api->stream_start,
 		 "stream_start must be implemented by driver");
@@ -410,7 +410,7 @@ static inline int video_stream_start(struct device *dev)
 static inline int video_stream_stop(struct device *dev)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 	int ret;
 
 	__ASSERT(api->stream_stop,
@@ -436,7 +436,7 @@ static inline int video_get_caps(struct device *dev,
 				 struct video_caps *caps)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	__ASSERT(api->get_caps, "get_caps must be implemented by driver");
 
@@ -462,7 +462,7 @@ static inline int video_set_ctrl(struct device *dev, unsigned int cid,
 				 void *value)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	if (api->set_ctrl == NULL) {
 		return -ENOTSUP;
@@ -490,7 +490,7 @@ static inline int video_get_ctrl(struct device *dev, unsigned int cid,
 				 void *value)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	if (api->get_ctrl == NULL) {
 		return -ENOTSUP;
@@ -517,7 +517,7 @@ static inline int video_set_signal(struct device *dev,
 				   struct k_poll_signal *signal)
 {
 	const struct video_driver_api *api =
-		(const struct video_driver_api *)dev->driver_api;
+		(const struct video_driver_api *)dev->api;
 
 	if (api->set_signal == NULL) {
 		return -ENOTSUP;
@@ -545,7 +545,7 @@ void video_buffer_release(struct video_buffer *buf);
 
 /* fourcc - four-character-code */
 #define video_fourcc(a, b, c, d)\
-	((u32_t)(a) | ((u32_t)(b) << 8) | ((u32_t)(c) << 16) | ((u32_t)(d) << 24))
+	((uint32_t)(a) | ((uint32_t)(b) << 8) | ((uint32_t)(c) << 16) | ((uint32_t)(d) << 24))
 
 /* Raw bayer formats */
 #define VIDEO_PIX_FMT_BGGR8  video_fourcc('B', 'G', 'G', 'R') /*  8  BGBG.. GRGR.. */

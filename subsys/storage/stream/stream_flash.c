@@ -106,16 +106,16 @@ static int flash_sync(struct stream_flash_ctx *ctx)
 	return rc;
 }
 
-int stream_flash_buffered_write(struct stream_flash_ctx *ctx, const u8_t *data,
+int stream_flash_buffered_write(struct stream_flash_ctx *ctx, const uint8_t *data,
 				size_t len, bool flush)
 {
 	int processed = 0;
 	int rc = 0;
 	int buf_empty_bytes;
 	size_t fill_length;
-	u8_t filler;
+	uint8_t filler;
 
-	if (!ctx || !data) {
+	if (!ctx) {
 		return -EFAULT;
 	}
 
@@ -165,9 +165,12 @@ int stream_flash_buffered_write(struct stream_flash_ctx *ctx, const u8_t *data,
 
 			memset(ctx->buf + ctx->buf_bytes, filler, fill_length);
 			ctx->buf_bytes += fill_length;
+		} else {
+			fill_length = 0;
 		}
 
 		rc = flash_sync(ctx);
+		ctx->bytes_written -= fill_length;
 	}
 
 	return rc;
@@ -179,7 +182,7 @@ size_t stream_flash_bytes_written(struct stream_flash_ctx *ctx)
 }
 
 int stream_flash_init(struct stream_flash_ctx *ctx, struct device *fdev,
-		      u8_t *buf, size_t buf_len, size_t offset, size_t size,
+		      uint8_t *buf, size_t buf_len, size_t offset, size_t size,
 		      stream_flash_callback_t cb)
 {
 	if (!ctx || !fdev || !buf) {
@@ -189,7 +192,7 @@ int stream_flash_init(struct stream_flash_ctx *ctx, struct device *fdev,
 	size_t layout_size = 0;
 	size_t total_size = 0;
 	const struct flash_pages_layout *layout;
-	const struct flash_driver_api *api = fdev->driver_api;
+	const struct flash_driver_api *api = fdev->api;
 
 	if (buf_len % flash_get_write_block_size(fdev)) {
 		LOG_ERR("Buffer size is not aligned to minimal write-block-size");
@@ -212,7 +215,7 @@ int stream_flash_init(struct stream_flash_ctx *ctx, struct device *fdev,
 	}
 
 	if ((offset + size) > total_size ||
-	    offset % api->write_block_size) {
+	    offset % flash_get_write_block_size(fdev)) {
 		LOG_ERR("Incorrect parameter");
 		return -EFAULT;
 	}

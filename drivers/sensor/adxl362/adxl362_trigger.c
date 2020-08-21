@@ -20,8 +20,8 @@ LOG_MODULE_DECLARE(ADXL362, CONFIG_SENSOR_LOG_LEVEL);
 static void adxl362_thread_cb(void *arg)
 {
 	struct device *dev = arg;
-	struct adxl362_data *drv_data = dev->driver_data;
-	u8_t status_buf;
+	struct adxl362_data *drv_data = dev->data;
+	uint8_t status_buf;
 
 	/* Clears activity and inactivity interrupt */
 	if (adxl362_get_status(dev, &status_buf)) {
@@ -45,7 +45,7 @@ static void adxl362_thread_cb(void *arg)
 }
 
 static void adxl362_gpio_callback(struct device *dev,
-				  struct gpio_callback *cb, u32_t pins)
+				  struct gpio_callback *cb, uint32_t pins)
 {
 	struct adxl362_data *drv_data =
 		CONTAINER_OF(cb, struct adxl362_data, gpio_cb);
@@ -61,7 +61,7 @@ static void adxl362_gpio_callback(struct device *dev,
 static void adxl362_thread(int dev_ptr, int unused)
 {
 	struct device *dev = INT_TO_POINTER(dev_ptr);
-	struct adxl362_data *drv_data = dev->driver_data;
+	struct adxl362_data *drv_data = dev->data;
 
 	ARG_UNUSED(unused);
 
@@ -84,8 +84,8 @@ int adxl362_trigger_set(struct device *dev,
 			const struct sensor_trigger *trig,
 			sensor_trigger_handler_t handler)
 {
-	struct adxl362_data *drv_data = dev->driver_data;
-	u8_t int_mask, int_en, status_buf;
+	struct adxl362_data *drv_data = dev->data;
+	uint8_t int_mask, int_en, status_buf;
 
 	switch (trig->type) {
 	case SENSOR_TRIG_THRESHOLD:
@@ -122,8 +122,8 @@ int adxl362_trigger_set(struct device *dev,
 
 int adxl362_init_interrupt(struct device *dev)
 {
-	struct adxl362_data *drv_data = dev->driver_data;
-	const struct adxl362_config *cfg = dev->config_info;
+	struct adxl362_data *drv_data = dev->data;
+	const struct adxl362_config *cfg = dev->config;
 	int ret;
 
 	k_mutex_init(&drv_data->trigger_mutex);

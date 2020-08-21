@@ -21,14 +21,14 @@ LOG_MODULE_REGISTER(IAQ_CORE, CONFIG_SENSOR_LOG_LEVEL);
 
 static int iaqcore_sample_fetch(struct device *dev, enum sensor_channel chan)
 {
-	struct iaq_core_data *drv_data = dev->driver_data;
+	struct iaq_core_data *drv_data = dev->data;
 	struct iaq_registers buf;
 	struct i2c_msg msg;
 	int ret, tries;
 
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL);
 
-	msg.buf = (u8_t *)&buf;
+	msg.buf = (uint8_t *)&buf;
 	msg.len = sizeof(struct iaq_registers);
 	msg.flags = I2C_MSG_READ | I2C_MSG_STOP;
 
@@ -70,7 +70,7 @@ static int iaqcore_channel_get(struct device *dev,
 			       enum sensor_channel chan,
 			       struct sensor_value *val)
 {
-	struct iaq_core_data *drv_data = dev->driver_data;
+	struct iaq_core_data *drv_data = dev->data;
 
 	switch (chan) {
 	case SENSOR_CHAN_CO2:
@@ -99,7 +99,7 @@ static const struct sensor_driver_api iaq_core_driver_api = {
 
 static int iaq_core_init(struct device *dev)
 {
-	struct iaq_core_data *drv_data = dev->driver_data;
+	struct iaq_core_data *drv_data = dev->data;
 
 	drv_data->i2c = device_get_binding(DT_INST_BUS_LABEL(0));
 	if (drv_data->i2c == NULL) {

@@ -16,7 +16,7 @@ LOG_MODULE_DECLARE(BMI160, CONFIG_SENSOR_LOG_LEVEL);
 
 static void bmi160_handle_anymotion(struct device *dev)
 {
-	struct bmi160_device_data *bmi160 = dev->driver_data;
+	struct bmi160_device_data *bmi160 = dev->data;
 	struct sensor_trigger anym_trigger = {
 		.type = SENSOR_TRIG_DELTA,
 		.chan = SENSOR_CHAN_ACCEL_XYZ,
@@ -27,9 +27,9 @@ static void bmi160_handle_anymotion(struct device *dev)
 	}
 }
 
-static void bmi160_handle_drdy(struct device *dev, u8_t status)
+static void bmi160_handle_drdy(struct device *dev, uint8_t status)
 {
-	struct bmi160_device_data *bmi160 = dev->driver_data;
+	struct bmi160_device_data *bmi160 = dev->data;
 	struct sensor_trigger drdy_trigger = {
 		.type = SENSOR_TRIG_DATA_READY,
 	};
@@ -54,11 +54,11 @@ static void bmi160_handle_interrupts(void *arg)
 	struct device *dev = (struct device *)arg;
 
 	union {
-		u8_t raw[6];
+		uint8_t raw[6];
 		struct {
-			u8_t dummy; /* spi related dummy byte */
-			u8_t status;
-			u8_t int_status[4];
+			uint8_t dummy; /* spi related dummy byte */
+			uint8_t status;
+			uint8_t int_status[4];
 		};
 	} buf;
 
@@ -80,7 +80,7 @@ static void bmi160_handle_interrupts(void *arg)
 }
 
 #ifdef CONFIG_BMI160_TRIGGER_OWN_THREAD
-static K_THREAD_STACK_DEFINE(bmi160_thread_stack, CONFIG_BMI160_THREAD_STACK_SIZE);
+static K_KERNEL_STACK_DEFINE(bmi160_thread_stack, CONFIG_BMI160_THREAD_STACK_SIZE);
 static struct k_thread bmi160_thread;
 
 static void bmi160_thread_main(void *arg1, void *unused1, void *unused2)
@@ -88,7 +88,7 @@ static void bmi160_thread_main(void *arg1, void *unused1, void *unused2)
 	ARG_UNUSED(unused1);
 	ARG_UNUSED(unused2);
 	struct device *dev = (struct device *)arg1;
-	struct bmi160_device_data *bmi160 = dev->driver_data;
+	struct bmi160_device_data *bmi160 = dev->data;
 
 	while (1) {
 		k_sem_take(&bmi160->sem, K_FOREVER);
@@ -110,7 +110,7 @@ static void bmi160_work_handler(struct k_work *work)
 extern struct bmi160_device_data bmi160_data;
 
 static void bmi160_gpio_callback(struct device *port,
-				 struct gpio_callback *cb, u32_t pin)
+				 struct gpio_callback *cb, uint32_t pin)
 {
 	struct bmi160_device_data *bmi160 =
 		CONTAINER_OF(cb, struct bmi160_device_data, gpio_cb);
@@ -129,8 +129,8 @@ static int bmi160_trigger_drdy_set(struct device *dev,
 				   enum sensor_channel chan,
 				   sensor_trigger_handler_t handler)
 {
-	struct bmi160_device_data *bmi160 = dev->driver_data;
-	u8_t drdy_en = 0U;
+	struct bmi160_device_data *bmi160 = dev->data;
+	uint8_t drdy_en = 0U;
 
 #if !defined(CONFIG_BMI160_ACCEL_PMU_SUSPEND)
 	if (chan == SENSOR_CHAN_ACCEL_XYZ) {
@@ -164,8 +164,8 @@ static int bmi160_trigger_drdy_set(struct device *dev,
 static int bmi160_trigger_anym_set(struct device *dev,
 				   sensor_trigger_handler_t handler)
 {
-	struct bmi160_device_data *bmi160 = dev->driver_data;
-	u8_t anym_en = 0U;
+	struct bmi160_device_data *bmi160 = dev->data;
+	uint8_t anym_en = 0U;
 
 	bmi160->handler_anymotion = handler;
 
@@ -199,8 +199,8 @@ static int bmi160_trigger_set_acc(struct device *dev,
 int bmi160_acc_slope_config(struct device *dev, enum sensor_attribute attr,
 			    const struct sensor_value *val)
 {
-	u8_t acc_range_g, reg_val;
-	u32_t slope_th_ums2;
+	uint8_t acc_range_g, reg_val;
+	uint32_t slope_th_ums2;
 
 	if (attr == SENSOR_ATTR_SLOPE_TH) {
 		if (bmi160_byte_read(dev, BMI160_REG_ACC_RANGE, &reg_val) < 0) {
@@ -272,9 +272,9 @@ int bmi160_trigger_set(struct device *dev,
 
 int bmi160_trigger_mode_init(struct device *dev)
 {
-	struct bmi160_device_data *bmi160 = dev->driver_data;
+	struct bmi160_device_data *bmi160 = dev->data;
 
-	const struct bmi160_device_config *cfg = dev->config_info;
+	const struct bmi160_device_config *cfg = dev->config;
 
 	bmi160->gpio = device_get_binding((char *)cfg->gpio_port);
 	if (!bmi160->gpio) {

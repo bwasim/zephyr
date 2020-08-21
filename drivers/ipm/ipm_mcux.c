@@ -37,13 +37,13 @@ struct mcux_mailbox_data {
 static void mcux_mailbox_isr(void *arg)
 {
 	struct device *dev = arg;
-	struct mcux_mailbox_data *data = dev->driver_data;
-	const struct mcux_mailbox_config *config = dev->config_info;
+	struct mcux_mailbox_data *data = dev->data;
+	const struct mcux_mailbox_config *config = dev->config;
 	mailbox_cpu_id_t cpu_id;
 
 	cpu_id = MAILBOX_ID_THIS_CPU;
 
-	volatile u32_t value = MAILBOX_GetValue(config->base, cpu_id);
+	volatile uint32_t value = MAILBOX_GetValue(config->base, cpu_id);
 
 	__ASSERT(value, "spurious MAILBOX interrupt");
 
@@ -52,7 +52,7 @@ static void mcux_mailbox_isr(void *arg)
 
 	if (data->callback) {
 		/* Only one MAILBOX, id is unused and set to 0 */
-		data->callback(data->callback_ctx, 0, &value);
+		data->callback(dev, data->callback_ctx, 0, &value);
 	}
 	/* Add for ARM errata 838869, affects Cortex-M4, Cortex-M4F
 	 * Store immediate overlapping exception return operation
@@ -64,13 +64,13 @@ static void mcux_mailbox_isr(void *arg)
 }
 
 
-static int mcux_mailbox_ipm_send(struct device *d, int wait, u32_t id,
+static int mcux_mailbox_ipm_send(struct device *d, int wait, uint32_t id,
 			const void *data, int size)
 {
-	const struct mcux_mailbox_config *config = d->config_info;
+	const struct mcux_mailbox_config *config = d->config;
 	MAILBOX_Type *base = config->base;
-	u32_t data32[MCUX_IPM_DATA_REGS]; /* Until we change API
-					   * to u32_t array
+	uint32_t data32[MCUX_IPM_DATA_REGS]; /* Until we change API
+					   * to uint32_t array
 					   */
 	unsigned int flags;
 	int i;
@@ -81,7 +81,7 @@ static int mcux_mailbox_ipm_send(struct device *d, int wait, u32_t id,
 		return -EINVAL;
 	}
 
-	if (size > MCUX_IPM_DATA_REGS * sizeof(u32_t)) {
+	if (size > MCUX_IPM_DATA_REGS * sizeof(uint32_t)) {
 		return -EMSGSIZE;
 	}
 
@@ -104,11 +104,11 @@ static int mcux_mailbox_ipm_max_data_size_get(struct device *d)
 {
 	ARG_UNUSED(d);
 	/* Only a single 32-bit register available */
-	return MCUX_IPM_DATA_REGS*sizeof(u32_t);
+	return MCUX_IPM_DATA_REGS*sizeof(uint32_t);
 }
 
 
-static u32_t mcux_mailbox_ipm_max_id_val_get(struct device *d)
+static uint32_t mcux_mailbox_ipm_max_id_val_get(struct device *d)
 {
 	ARG_UNUSED(d);
 	/* Only a single instance of MAILBOX available for this platform */
@@ -119,7 +119,7 @@ static void mcux_mailbox_ipm_register_callback(struct device *d,
 					       ipm_callback_t cb,
 					       void *context)
 {
-	struct mcux_mailbox_data *driver_data = d->driver_data;
+	struct mcux_mailbox_data *driver_data = d->data;
 
 	driver_data->callback = cb;
 	driver_data->callback_ctx = context;
@@ -135,7 +135,7 @@ static int mcux_mailbox_ipm_set_enabled(struct device *d, int enable)
 
 static int mcux_mailbox_init(struct device *dev)
 {
-	const struct mcux_mailbox_config *config = dev->config_info;
+	const struct mcux_mailbox_config *config = dev->config;
 
 	MAILBOX_Init(config->base);
 	config->irq_config_func(dev);

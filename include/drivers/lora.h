@@ -39,12 +39,12 @@ enum lora_coding_rate {
 };
 
 struct lora_modem_config {
-	u32_t frequency;
+	uint32_t frequency;
 	enum lora_signal_bandwidth bandwidth;
 	enum lora_datarate datarate;
 	enum lora_coding_rate coding_rate;
-	u16_t preamble_len;
-	s8_t tx_power;
+	uint16_t preamble_len;
+	int8_t tx_power;
 	bool tx;
 };
 
@@ -64,7 +64,7 @@ typedef int (*lora_api_config)(struct device *dev,
  * @see lora_send() for argument descriptions.
  */
 typedef int (*lora_api_send)(struct device *dev,
-			     u8_t *data, u32_t data_len);
+			     uint8_t *data, uint32_t data_len);
 
 /**
  * @typedef lora_api_recv()
@@ -72,8 +72,8 @@ typedef int (*lora_api_send)(struct device *dev,
  *
  * @see lora_recv() for argument descriptions.
  */
-typedef int (*lora_api_recv)(struct device *dev, u8_t *data, u8_t size,
-			     k_timeout_t timeout, s16_t *rssi, s8_t *snr);
+typedef int (*lora_api_recv)(struct device *dev, uint8_t *data, uint8_t size,
+			     k_timeout_t timeout, int16_t *rssi, int8_t *snr);
 
 /**
  * @typedef lora_api_test_cw()
@@ -81,8 +81,8 @@ typedef int (*lora_api_recv)(struct device *dev, u8_t *data, u8_t size,
  *
  * @see lora_test_cw() for argument descriptions.
  */
-typedef int (*lora_api_test_cw)(struct device *dev, u32_t frequency,
-				s8_t tx_power, u16_t duration);
+typedef int (*lora_api_test_cw)(struct device *dev, uint32_t frequency,
+				int8_t tx_power, uint16_t duration);
 
 struct lora_driver_api {
 	lora_api_config config;
@@ -102,7 +102,7 @@ struct lora_driver_api {
 static inline int lora_config(struct device *dev,
 			      struct lora_modem_config *config)
 {
-	const struct lora_driver_api *api = dev->driver_api;
+	const struct lora_driver_api *api = dev->api;
 
 	return api->config(dev, config);
 }
@@ -118,9 +118,9 @@ static inline int lora_config(struct device *dev,
  * @return 0 on success, negative on error
  */
 static inline int lora_send(struct device *dev,
-			    u8_t *data, u32_t data_len)
+			    uint8_t *data, uint32_t data_len)
 {
-	const struct lora_driver_api *api = dev->driver_api;
+	const struct lora_driver_api *api = dev->api;
 
 	return api->send(dev, data, data_len);
 }
@@ -141,10 +141,10 @@ static inline int lora_send(struct device *dev,
  * @param snr       SNR of received data
  * @return Length of the data received on success, negative on error
  */
-static inline int lora_recv(struct device *dev, u8_t *data, u8_t size,
-			    k_timeout_t timeout, s16_t *rssi, s8_t *snr)
+static inline int lora_recv(struct device *dev, uint8_t *data, uint8_t size,
+			    k_timeout_t timeout, int16_t *rssi, int8_t *snr)
 {
-	const struct lora_driver_api *api = dev->driver_api;
+	const struct lora_driver_api *api = dev->api;
 
 	return api->recv(dev, data, size, timeout, rssi, snr);
 }
@@ -161,10 +161,10 @@ static inline int lora_recv(struct device *dev, u8_t *data, u8_t size,
  * @param duration  Transmission duration in seconds.
  * @return 0 on success, negative on error
  */
-static inline int lora_test_cw(struct device *dev, u32_t frequency,
-			       s8_t tx_power, u16_t duration)
+static inline int lora_test_cw(struct device *dev, uint32_t frequency,
+			       int8_t tx_power, uint16_t duration)
 {
-	const struct lora_driver_api *api = dev->driver_api;
+	const struct lora_driver_api *api = dev->api;
 
 	if (!api->test_cw) {
 		return -ENOTSUP;

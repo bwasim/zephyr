@@ -12,29 +12,29 @@
 #include "ipm_mhu.h"
 
 #define DEV_CFG(dev) \
-	((const struct ipm_mhu_device_config * const)(dev)->config_info)
+	((const struct ipm_mhu_device_config * const)(dev)->config)
 #define DEV_DATA(dev) \
-	((struct ipm_mhu_data *)(dev)->driver_data)
+	((struct ipm_mhu_data *)(dev)->data)
 #define IPM_MHU_REGS(dev) \
 	((volatile struct ipm_mhu_reg_map_t *)(DEV_CFG(dev))->base)
 
 static enum ipm_mhu_cpu_id_t ipm_mhu_get_cpu_id(const struct device *d)
 {
-	volatile u32_t *p_mhu_dev_base;
-	volatile u32_t *p_cpu_id;
+	volatile uint32_t *p_mhu_dev_base;
+	volatile uint32_t *p_cpu_id;
 
-	p_mhu_dev_base = (volatile u32_t *)IPM_MHU_REGS(d);
+	p_mhu_dev_base = (volatile uint32_t *)IPM_MHU_REGS(d);
 
-	p_cpu_id = (volatile u32_t *)(((u32_t)p_mhu_dev_base &
+	p_cpu_id = (volatile uint32_t *)(((uint32_t)p_mhu_dev_base &
 						SSE_200_DEVICE_BASE_REG_MSK) +
 						SSE_200_CPU_ID_UNIT_OFFSET);
 
 	return (enum ipm_mhu_cpu_id_t)*p_cpu_id;
 }
 
-static u32_t ipm_mhu_get_status(const struct device *d,
+static uint32_t ipm_mhu_get_status(const struct device *d,
 						enum ipm_mhu_cpu_id_t cpu_id,
-						u32_t *status)
+						uint32_t *status)
 {
 	struct ipm_mhu_reg_map_t *p_mhu_dev;
 
@@ -57,12 +57,12 @@ static u32_t ipm_mhu_get_status(const struct device *d,
 	return IPM_MHU_ERR_NONE;
 }
 
-static int ipm_mhu_send(struct device *d, int wait, u32_t cpu_id,
+static int ipm_mhu_send(struct device *d, int wait, uint32_t cpu_id,
 			  const void *data, int size)
 {
 	ARG_UNUSED(wait);
 	ARG_UNUSED(data);
-	const u32_t set_val = 0x01;
+	const uint32_t set_val = 0x01;
 
 	struct ipm_mhu_reg_map_t *p_mhu_dev;
 
@@ -91,7 +91,7 @@ static int ipm_mhu_send(struct device *d, int wait, u32_t cpu_id,
 
 static void ipm_mhu_clear_val(const struct device *d,
 						enum ipm_mhu_cpu_id_t cpu_id,
-						u32_t clear_val)
+						uint32_t clear_val)
 {
 	struct ipm_mhu_reg_map_t *p_mhu_dev;
 
@@ -108,7 +108,7 @@ static void ipm_mhu_clear_val(const struct device *d,
 	}
 }
 
-static u32_t ipm_mhu_max_id_val_get(struct device *d)
+static uint32_t ipm_mhu_max_id_val_get(struct device *d)
 {
 	ARG_UNUSED(d);
 
@@ -129,7 +129,7 @@ static void ipm_mhu_isr(void *arg)
 	struct device *d = arg;
 	struct ipm_mhu_data *driver_data = DEV_DATA(d);
 	enum ipm_mhu_cpu_id_t cpu_id;
-	u32_t ipm_mhu_status;
+	uint32_t ipm_mhu_status;
 
 	cpu_id = ipm_mhu_get_cpu_id(d);
 
@@ -137,8 +137,8 @@ static void ipm_mhu_isr(void *arg)
 	ipm_mhu_clear_val(d, cpu_id, ipm_mhu_status);
 
 	if (driver_data->callback) {
-		driver_data->callback(driver_data->callback_ctx, cpu_id,
-					&ipm_mhu_status);
+		driver_data->callback(d, driver_data->user_data, cpu_id,
+				      &ipm_mhu_status);
 	}
 }
 
@@ -157,13 +157,13 @@ static int ipm_mhu_max_data_size_get(struct device *d)
 }
 
 static void ipm_mhu_register_cb(struct device *d,
-						ipm_callback_t cb,
-						void *context)
+				ipm_callback_t cb,
+				void *user_data)
 {
 	struct ipm_mhu_data *driver_data = DEV_DATA(d);
 
 	driver_data->callback = cb;
-	driver_data->callback_ctx = context;
+	driver_data->user_data = user_data;
 }
 
 static const struct ipm_driver_api ipm_mhu_driver_api = {
@@ -177,13 +177,13 @@ static const struct ipm_driver_api ipm_mhu_driver_api = {
 static void ipm_mhu_irq_config_func_0(struct device *d);
 
 static const struct ipm_mhu_device_config ipm_mhu_cfg_0 = {
-	.base = (u8_t *)DT_INST_REG_ADDR(0),
+	.base = (uint8_t *)DT_INST_REG_ADDR(0),
 	.irq_config_func = ipm_mhu_irq_config_func_0,
 };
 
 static struct ipm_mhu_data ipm_mhu_data_0 = {
 	.callback = NULL,
-	.callback_ctx = NULL,
+	.user_data = NULL,
 };
 
 DEVICE_AND_API_INIT(mhu_0,
@@ -208,13 +208,13 @@ static void ipm_mhu_irq_config_func_0(struct device *d)
 static void ipm_mhu_irq_config_func_1(struct device *d);
 
 static const struct ipm_mhu_device_config ipm_mhu_cfg_1 = {
-	.base = (u8_t *)DT_INST_REG_ADDR(1),
+	.base = (uint8_t *)DT_INST_REG_ADDR(1),
 	.irq_config_func = ipm_mhu_irq_config_func_1,
 };
 
 static struct ipm_mhu_data ipm_mhu_data_1 = {
 	.callback = NULL,
-	.callback_ctx = NULL,
+	.user_data = NULL,
 };
 
 DEVICE_AND_API_INIT(mhu_1,

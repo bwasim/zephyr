@@ -21,7 +21,7 @@ int hmc5883l_trigger_set(struct device *dev,
 			 const struct sensor_trigger *trig,
 			 sensor_trigger_handler_t handler)
 {
-	struct hmc5883l_data *drv_data = dev->driver_data;
+	struct hmc5883l_data *drv_data = dev->data;
 
 	__ASSERT_NO_MSG(trig->type == SENSOR_TRIG_DATA_READY);
 
@@ -44,7 +44,7 @@ int hmc5883l_trigger_set(struct device *dev,
 }
 
 static void hmc5883l_gpio_callback(struct device *dev,
-				   struct gpio_callback *cb, u32_t pins)
+				   struct gpio_callback *cb, uint32_t pins)
 {
 	struct hmc5883l_data *drv_data =
 		CONTAINER_OF(cb, struct hmc5883l_data, gpio_cb);
@@ -65,7 +65,7 @@ static void hmc5883l_gpio_callback(struct device *dev,
 static void hmc5883l_thread_cb(void *arg)
 {
 	struct device *dev = arg;
-	struct hmc5883l_data *drv_data = dev->driver_data;
+	struct hmc5883l_data *drv_data = dev->data;
 
 	if (drv_data->data_ready_handler != NULL) {
 		drv_data->data_ready_handler(dev,
@@ -81,7 +81,7 @@ static void hmc5883l_thread_cb(void *arg)
 static void hmc5883l_thread(int dev_ptr, int unused)
 {
 	struct device *dev = INT_TO_POINTER(dev_ptr);
-	struct hmc5883l_data *drv_data = dev->driver_data;
+	struct hmc5883l_data *drv_data = dev->data;
 
 	ARG_UNUSED(unused);
 
@@ -104,7 +104,7 @@ static void hmc5883l_work_cb(struct k_work *work)
 
 int hmc5883l_init_interrupt(struct device *dev)
 {
-	struct hmc5883l_data *drv_data = dev->driver_data;
+	struct hmc5883l_data *drv_data = dev->data;
 
 	/* setup data ready gpio interrupt */
 	drv_data->gpio = device_get_binding(

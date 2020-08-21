@@ -21,6 +21,11 @@ menuconfig CLOCK_CONTROL_NRF
 
 if CLOCK_CONTROL_NRF
 
+config CLOCK_CONTROL_NRF_SHELL
+	bool "Shell commands"
+	depends on SHELL
+	default y if SHELL
+
 choice CLOCK_CONTROL_NRF_SOURCE
 	prompt "32KHz clock source"
 	default CLOCK_CONTROL_NRF_K32SRC_XTAL
@@ -46,11 +51,23 @@ config CLOCK_CONTROL_NRF_K32SRC_EXT_FULL_SWING
 endchoice
 
 config CLOCK_CONTROL_NRF_K32SRC_RC_CALIBRATION
-	bool
+	bool "Enable LF clock calibration"
 	depends on !SOC_SERIES_NRF91X
+	default n if BOARD_NRF5340PDK_NRF5340_CPUAPP || BOARD_NRF5340PDK_NRF5340_CPUAPPNS
 	default y if CLOCK_CONTROL_NRF_K32SRC_RC
+	help
+	  If calibration is disabled when RC is used for low frequency clock then
+	  accuracy of the low frequency clock will degrade. Disable on your own
+	  risk.
 
 if CLOCK_CONTROL_NRF_K32SRC_RC_CALIBRATION
+
+config CLOCK_CONTROL_NRF_CALIBRATION_LF_ALWAYS_ON
+	bool "LF clock is always on"
+	default y if NRF_RTC_TIMER
+	help
+	  If RTC is used as system timer then LF clock is always on and handling
+	  can be simplified.
 
 config CLOCK_CONTROL_NRF_CALIBRATION_PERIOD
 	int "Calibration opportunity period in milliseconds"

@@ -52,7 +52,6 @@ struct gpio_gecko_common_data {
 struct gpio_gecko_config {
 	/* gpio_driver_config needs to be first */
 	struct gpio_driver_config common;
-	GPIO_P_TypeDef *gpio_base;
 	GPIO_Port_TypeDef gpio_index;
 };
 
@@ -61,8 +60,8 @@ struct gpio_gecko_data {
 	struct gpio_driver_data common;
 	/* port ISR callback routine address */
 	sys_slist_t callbacks;
-	/* pin callback routine enable flags, by pin number */
-	u32_t pin_callback_enables;
+	/* mask of pins on which interrupt is enabled */
+	uint32_t int_enabled_mask;
 };
 
 static inline void gpio_gecko_add_port(struct gpio_gecko_common_data *data,
@@ -76,7 +75,7 @@ static int gpio_gecko_configure(struct device *dev,
 				gpio_pin_t pin,
 				gpio_flags_t flags)
 {
-	const struct gpio_gecko_config *config = dev->config_info;
+	const struct gpio_gecko_config *config = dev->config;
 	GPIO_Port_TypeDef gpio_index = config->gpio_index;
 	GPIO_Mode_TypeDef mode;
 	unsigned int out = 0U;
@@ -125,61 +124,53 @@ static int gpio_gecko_configure(struct device *dev,
 	return 0;
 }
 
-static int gpio_gecko_port_get_raw(struct device *dev, u32_t *value)
+static int gpio_gecko_port_get_raw(struct device *dev, uint32_t *value)
 {
-	const struct gpio_gecko_config *config = dev->config_info;
-	GPIO_P_TypeDef *gpio_base = config->gpio_base;
+	const struct gpio_gecko_config *config = dev->config;
+	GPIO_Port_TypeDef gpio_index = config->gpio_index;
 
-	*value = gpio_base->DIN;
+	*value = GPIO_PortInGet(gpio_index);
 
 	return 0;
 }
 
-static int gpio_gecko_port_set_masked_raw(struct device *dev, u32_t mask,
-					  u32_t value)
+static int gpio_gecko_port_set_masked_raw(struct device *dev, uint32_t mask,
+					  uint32_t value)
 {
-	const struct gpio_gecko_config *config = dev->config_info;
-	GPIO_P_TypeDef *gpio_base = config->gpio_base;
+	const struct gpio_gecko_config *config = dev->config;
+	GPIO_Port_TypeDef gpio_index = config->gpio_index;
 
-	gpio_base->DOUT = (gpio_base->DOUT & ~mask) | (mask & value);
+	GPIO_PortOutSetVal(gpio_index, value, mask);
 
 	return 0;
 }
 
-static int gpio_gecko_port_set_bits_raw(struct device *dev, u32_t mask)
+static int gpio_gecko_port_set_bits_raw(struct device *dev, uint32_t mask)
 {
-	const struct gpio_gecko_config *config = dev->config_info;
-	GPIO_P_TypeDef *gpio_base = config->gpio_base;
+	const struct gpio_gecko_config *config = dev->config;
+	GPIO_Port_TypeDef gpio_index = config->gpio_index;
 
-#if defined(_GPIO_P_DOUTSET_MASK)
-	gpio_base->DOUTSET = mask;
-#else
-	BUS_RegMaskedSet(&gpio_base->DOUT, mask);
-#endif
+	GPIO_PortOutSet(gpio_index, mask);
 
 	return 0;
 }
 
-static int gpio_gecko_port_clear_bits_raw(struct device *dev, u32_t mask)
+static int gpio_gecko_port_clear_bits_raw(struct device *dev, uint32_t mask)
 {
-	const struct gpio_gecko_config *config = dev->config_info;
-	GPIO_P_TypeDef *gpio_base = config->gpio_base;
+	const struct gpio_gecko_config *config = dev->config;
+	GPIO_Port_TypeDef gpio_index = config->gpio_index;
 
-#if defined(_GPIO_P_DOUTCLR_MASK)
-	gpio_base->DOUTCLR = mask;
-#else
-	BUS_RegMaskedClear(&gpio_base->DOUT, mask);
-#endif
+	GPIO_PortOutClear(gpio_index, mask);
 
 	return 0;
 }
 
-static int gpio_gecko_port_toggle_bits(struct device *dev, u32_t mask)
+static int gpio_gecko_port_toggle_bits(struct device *dev, uint32_t mask)
 {
-	const struct gpio_gecko_config *config = dev->config_info;
-	GPIO_P_TypeDef *gpio_base = config->gpio_base;
+	const struct gpio_gecko_config *config = dev->config;
+	GPIO_Port_TypeDef gpio_index = config->gpio_index;
 
-	gpio_base->DOUTTGL = mask;
+	GPIO_PortOutToggle(gpio_index, mask);
 
 	return 0;
 }
@@ -188,8 +179,8 @@ static int gpio_gecko_pin_interrupt_configure(struct device *dev,
 		gpio_pin_t pin, enum gpio_int_mode mode,
 		enum gpio_int_trig trig)
 {
-	const struct gpio_gecko_config *config = dev->config_info;
-	struct gpio_gecko_data *data = dev->driver_data;
+	const struct gpio_gecko_config *config = dev->config;
+	struct gpio_gecko_data *data = dev->data;
 
 	/* Interrupt on static level is not supported by the hardware */
 	if (mode == GPIO_INT_MODE_LEVEL) {
@@ -222,7 +213,7 @@ static int gpio_gecko_pin_interrupt_configure(struct device *dev,
 			       rising_edge, falling_edge, true);
 	}
 
-	WRITE_BIT(data->pin_callback_enables, pin, mode != GPIO_INT_DISABLE);
+	WRITE_BIT(data->int_enabled_mask, pin, mode != GPIO_INT_DISABLE);
 
 	return 0;
 }
@@ -230,31 +221,9 @@ static int gpio_gecko_pin_interrupt_configure(struct device *dev,
 static int gpio_gecko_manage_callback(struct device *dev,
 				      struct gpio_callback *callback, bool set)
 {
-	struct gpio_gecko_data *data = dev->driver_data;
+	struct gpio_gecko_data *data = dev->data;
 
 	return gpio_manage_callback(&data->callbacks, callback, set);
-}
-
-static int gpio_gecko_enable_callback(struct device *dev,
-				      gpio_pin_t pin)
-{
-	struct gpio_gecko_data *data = dev->driver_data;
-
-	data->pin_callback_enables |= BIT(pin);
-	GPIO->IEN |= BIT(pin);
-
-	return 0;
-}
-
-static int gpio_gecko_disable_callback(struct device *dev,
-				       gpio_pin_t pin)
-{
-	struct gpio_gecko_data *data = dev->driver_data;
-
-	data->pin_callback_enables &= ~BIT(pin);
-	GPIO->IEN &= ~BIT(pin);
-
-	return 0;
 }
 
 /**
@@ -263,8 +232,8 @@ static int gpio_gecko_disable_callback(struct device *dev,
 static void gpio_gecko_common_isr(void *arg)
 {
 	struct device *dev = (struct device *)arg;
-	struct gpio_gecko_common_data *data = dev->driver_data;
-	u32_t enabled_int, int_status;
+	struct gpio_gecko_common_data *data = dev->data;
+	uint32_t enabled_int, int_status;
 	struct device *port_dev;
 	struct gpio_gecko_data *port_data;
 
@@ -272,17 +241,20 @@ static void gpio_gecko_common_isr(void *arg)
 
 	for (unsigned int i = 0; int_status && (i < data->count); i++) {
 		port_dev = data->ports[i];
-		port_data = port_dev->driver_data;
-		enabled_int = int_status & port_data->pin_callback_enables;
+		port_data = port_dev->data;
+		enabled_int = int_status & port_data->int_enabled_mask;
 		if (enabled_int != 0) {
 			int_status &= ~enabled_int;
+#if defined(_SILICON_LABS_32B_SERIES_2)
+			GPIO->IF_CLR = enabled_int;
+#else
 			GPIO->IFC = enabled_int;
+#endif
 			gpio_fire_callbacks(&port_data->callbacks, port_dev,
 					    enabled_int);
 		}
 	}
 }
-
 
 static const struct gpio_driver_api gpio_gecko_driver_api = {
 	.pin_configure = gpio_gecko_configure,
@@ -293,14 +265,10 @@ static const struct gpio_driver_api gpio_gecko_driver_api = {
 	.port_toggle_bits = gpio_gecko_port_toggle_bits,
 	.pin_interrupt_configure = gpio_gecko_pin_interrupt_configure,
 	.manage_callback = gpio_gecko_manage_callback,
-	.enable_callback = gpio_gecko_enable_callback,
-	.disable_callback = gpio_gecko_disable_callback,
 };
 
 static const struct gpio_driver_api gpio_gecko_common_driver_api = {
 	.manage_callback = gpio_gecko_manage_callback,
-	.enable_callback = gpio_gecko_enable_callback,
-	.disable_callback = gpio_gecko_disable_callback,
 };
 
 static int gpio_gecko_common_init(struct device *dev);
@@ -340,7 +308,6 @@ static const struct gpio_gecko_config gpio_gecko_port##idx##_config = { \
 	.common = { \
 		.port_pin_mask = (gpio_port_pins_t)(-1), \
 	}, \
-	.gpio_base = (GPIO_P_TypeDef *)DT_INST_REG_ADDR(idx), \
 	.gpio_index = DT_INST_PROP(idx, peripheral_id), \
 }; \
 \

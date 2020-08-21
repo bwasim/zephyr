@@ -38,7 +38,7 @@ static struct modem_pin modem_pins[] = {
 #if DT_INST_NODE_HAS_PROP(0, wifi_reset_gpios)
 	MODEM_PIN(DT_INST_GPIO_LABEL(0, wifi_reset_gpios),
 		  DT_INST_GPIO_PIN(0, wifi_reset_gpios),
-		  GPIO_OUTPUT),
+		  DT_INST_GPIO_FLAGS(0, wifi_reset_gpios) | GPIO_OUTPUT),
 #endif
 };
 
@@ -46,12 +46,12 @@ NET_BUF_POOL_DEFINE(mdm_recv_pool, MDM_RECV_MAX_BUF, MDM_RECV_BUF_SIZE,
 		    0, NULL);
 
 /* RX thread structures */
-K_THREAD_STACK_DEFINE(esp_rx_stack,
+K_KERNEL_STACK_DEFINE(esp_rx_stack,
 		      CONFIG_WIFI_ESP_RX_STACK_SIZE);
 struct k_thread esp_rx_thread;
 
 /* RX thread work queue */
-K_THREAD_STACK_DEFINE(esp_workq_stack,
+K_KERNEL_STACK_DEFINE(esp_workq_stack,
 		      CONFIG_WIFI_ESP_WORKQ_STACK_SIZE);
 
 struct esp_data esp_driver_data;
@@ -87,7 +87,7 @@ MODEM_CMD_DEFINE(on_cmd_error)
 /* RX thread */
 static void esp_rx(struct device *dev)
 {
-	struct esp_data *data = dev->driver_data;
+	struct esp_data *data = dev->data;
 
 	while (true) {
 		/* wait for incoming data */
@@ -132,6 +132,7 @@ MODEM_CMD_DEFINE(on_cmd_cipstamac)
 	return 0;
 }
 
+/* +CWLAP:(sec,ssid,rssi,channel) */
 MODEM_CMD_DEFINE(on_cmd_cwlap)
 {
 	struct esp_data *dev = CONTAINER_OF(data, struct esp_data,
@@ -139,7 +140,7 @@ MODEM_CMD_DEFINE(on_cmd_cwlap)
 	struct wifi_scan_result res = { 0 };
 	int i;
 
-	i = strtol(argv[0], NULL, 10);
+	i = strtol(&argv[0][1], NULL, 10);
 	if (i == 0) {
 		res.security = WIFI_SECURITY_TYPE_NONE;
 	} else {
@@ -228,20 +229,28 @@ MODEM_CMD_DEFINE(on_cmd_cipsta)
 
 static void esp_ip_addr_work(struct k_work *work)
 {
-	struct esp_data *data = CONTAINER_OF(work, struct esp_data,
-					     ip_addr_work);
+	struct esp_data *dev = CONTAINER_OF(work, struct esp_data,
+					    ip_addr_work);
+	int ret;
+
 	struct modem_cmd cmds[] = {
 		MODEM_CMD("+"_CIPSTA":", on_cmd_cipsta, 2U, ":"),
 	};
 
-	modem_cmd_send(&data->mctx.iface, &data->mctx.cmd_handler,
-			cmds, ARRAY_SIZE(cmds), "AT+"_CIPSTA"?",
-			&data->sem_response, ESP_CMD_TIMEOUT);
+	ret = modem_cmd_send(&dev->mctx.iface, &dev->mctx.cmd_handler,
+			     cmds, ARRAY_SIZE(cmds), "AT+"_CIPSTA"?",
+			     &dev->sem_response, ESP_CMD_TIMEOUT);
+	if (ret < 0) {
+		LOG_WRN("Failed to query IP settings: ret %d", ret);
+		k_delayed_work_submit_to_queue(&dev->workq, &dev->ip_addr_work,
+					       K_SECONDS(5));
+		return;
+	}
 
 	/* update interface addresses */
-	net_if_ipv4_set_gw(data->net_iface, &data->gw);
-	net_if_ipv4_set_netmask(data->net_iface, &data->nm);
-	net_if_ipv4_addr_add(data->net_iface, &data->ip, NET_ADDR_DHCP, 0);
+	net_if_ipv4_set_gw(dev->net_iface, &dev->gw);
+	net_if_ipv4_set_netmask(dev->net_iface, &dev->nm);
+	net_if_ipv4_addr_add(dev->net_iface, &dev->ip, NET_ADDR_DHCP, 0);
 }
 
 MODEM_CMD_DEFINE(on_cmd_got_ip)
@@ -259,7 +268,7 @@ MODEM_CMD_DEFINE(on_cmd_connect)
 {
 	struct esp_socket *sock;
 	struct esp_data *dev;
-	u8_t link_id;
+	uint8_t link_id;
 
 	link_id = data->match_buf[0] - '0';
 
@@ -276,7 +285,7 @@ MODEM_CMD_DEFINE(on_cmd_closed)
 {
 	struct esp_socket *sock;
 	struct esp_data *dev;
-	u8_t link_id;
+	uint8_t link_id;
 
 	link_id = data->match_buf[0] - '0';
 
@@ -341,8 +350,8 @@ struct net_pkt *esp_prepare_pkt(struct esp_data *dev, struct net_buf *src,
 }
 
 /*
- * Passive TCP: "+IPD,<id>,<len>\r\n"
- * Other:       "+IPD,<id>,<len>:<data>"
+ * Passive mode: "+IPD,<id>,<len>\r\n"
+ * Other:        "+IPD,<id>,<len>:<data>"
  */
 #define MIN_IPD_LEN (sizeof("+IPD,I,LE") - 1)
 #define MAX_IPD_LEN (sizeof("+IPD,I,LLLLE") - 1)
@@ -354,7 +363,7 @@ MODEM_CMD_DIRECT_DEFINE(on_cmd_ipd)
 	struct esp_socket *sock;
 	struct esp_data *dev;
 	struct net_pkt *pkt;
-	u8_t link_id;
+	uint8_t link_id;
 
 	dev = CONTAINER_OF(data, struct esp_data, cmd_handler_data);
 
@@ -384,9 +393,8 @@ MODEM_CMD_DIRECT_DEFINE(on_cmd_ipd)
 		goto out;
 	}
 
-	/* When using passive TCP, the +IPD command ends with \r\n */
-	if (IS_ENABLED(CONFIG_WIFI_ESP_PASSIVE_TCP) &&
-	    sock->ip_proto == IPPROTO_TCP) {
+	/* When using passive mode, the +IPD command ends with \r\n */
+	if (ESP_PROTO_PASSIVE(sock->ip_proto)) {
 		end = '\r';
 	} else {
 		end = ':';
@@ -416,8 +424,7 @@ MODEM_CMD_DIRECT_DEFINE(on_cmd_ipd)
 	 * When using passive TCP, the data itself is not included in the +IPD
 	 * command but must be polled with AT+CIPRECVDATA.
 	 */
-	if (IS_ENABLED(CONFIG_WIFI_ESP_PASSIVE_TCP) &&
-	    sock->ip_proto == IPPROTO_TCP) {
+	if (ESP_PROTO_PASSIVE(sock->ip_proto)) {
 		sock->bytes_avail = data_len;
 		k_work_submit_to_queue(&dev->workq, &sock->recvdata_work);
 		ret = data_offset;
@@ -466,6 +473,7 @@ MODEM_CMD_DEFINE(on_cmd_ready)
 {
 	struct esp_data *dev = CONTAINER_OF(data, struct esp_data,
 					    cmd_handler_data);
+	k_sem_give(&dev->sem_if_ready);
 
 	if (net_if_is_up(dev->net_iface)) {
 		net_if_down(dev->net_iface);
@@ -529,7 +537,7 @@ static void esp_mgmt_scan_work(struct k_work *work)
 
 static int esp_mgmt_scan(struct device *dev, scan_result_cb_t cb)
 {
-	struct esp_data *data = dev->driver_data;
+	struct esp_data *data = dev->data;
 
 	if (data->scan_cb != NULL) {
 		return -EINPROGRESS;
@@ -593,7 +601,7 @@ static void esp_mgmt_connect_work(struct k_work *work)
 static int esp_mgmt_connect(struct device *dev,
 			    struct wifi_connect_req_params *params)
 {
-	struct esp_data *data = dev->driver_data;
+	struct esp_data *data = dev->data;
 	int len;
 
 	if (!net_if_is_up(data->net_iface)) {
@@ -629,7 +637,7 @@ static int esp_mgmt_connect(struct device *dev,
 
 static int esp_mgmt_disconnect(struct device *dev)
 {
-	struct esp_data *data = dev->driver_data;
+	struct esp_data *data = dev->data;
 	int ret;
 
 	ret = modem_cmd_send(&data->mctx.iface, &data->mctx.cmd_handler,
@@ -644,7 +652,7 @@ static int esp_mgmt_ap_enable(struct device *dev,
 {
 	char cmd[sizeof("AT+"_CWSAP"=\"\",\"\",xx,x") + WIFI_SSID_MAX_LEN +
 		 WIFI_PSK_MAX_LEN];
-	struct esp_data *data = dev->driver_data;
+	struct esp_data *data = dev->data;
 	int ecn = 0, len, ret;
 
 	ret = modem_cmd_send(&data->mctx.iface, &data->mctx.cmd_handler,
@@ -680,7 +688,7 @@ static int esp_mgmt_ap_enable(struct device *dev,
 
 static int esp_mgmt_ap_disable(struct device *dev)
 {
-	struct esp_data *data = dev->driver_data;
+	struct esp_data *data = dev->data;
 	int ret;
 
 	ret = modem_cmd_send(&data->mctx.iface, &data->mctx.cmd_handler,
@@ -698,16 +706,16 @@ static void esp_init_work(struct k_work *work)
 		SETUP_CMD_NOHANDLE("AT"),
 		/* turn off echo */
 		SETUP_CMD_NOHANDLE("ATE0"),
+		SETUP_CMD_NOHANDLE("AT+UART_CUR="_UART_CUR),
+		SETUP_CMD_NOHANDLE("AT+"_CWMODE"=1"),
+		/* enable multiple socket support */
+		SETUP_CMD_NOHANDLE("AT+CIPMUX=1"),
+		/* only need ecn,ssid,rssi,channel */
+		SETUP_CMD_NOHANDLE("AT+CWLAPOPT=0,23"),
 #if defined(CONFIG_WIFI_ESP_AT_VERSION_2_0)
 		SETUP_CMD_NOHANDLE("AT+CWAUTOCONN=0"),
 #endif
-		SETUP_CMD_NOHANDLE("AT+UART_CUR="_UART_CUR),
-		/* enable multiple socket support */
-		SETUP_CMD_NOHANDLE("AT+CIPMUX=1"),
-		SETUP_CMD_NOHANDLE("AT+"_CWMODE"=1"),
-		/* only need ecn,ssid,rssi,channel */
-		SETUP_CMD_NOHANDLE("AT+CWLAPOPT=0,23"),
-#if defined(CONFIG_WIFI_ESP_PASSIVE_TCP)
+#if defined(CONFIG_WIFI_ESP_PASSIVE_MODE)
 		SETUP_CMD_NOHANDLE("AT+CIPRECVMODE=1"),
 #endif
 		SETUP_CMD("AT+"_CIPSTAMAC"?", "+"_CIPSTAMAC":",
@@ -745,16 +753,16 @@ static void esp_reset(struct esp_data *dev)
 	}
 
 #if DT_INST_NODE_HAS_PROP(0, wifi_reset_gpios)
-	modem_pin_write(&dev->mctx, WIFI_RESET, 0);
-	k_sleep(K_MSEC(100));
 	modem_pin_write(&dev->mctx, WIFI_RESET, 1);
+	k_sleep(K_MSEC(100));
+	modem_pin_write(&dev->mctx, WIFI_RESET, 0);
 #else
 	int retries = 3;
 
 	while (retries--) {
 		ret = modem_cmd_send(&dev->mctx.iface, &dev->mctx.cmd_handler,
-				     NULL, 0, "AT+RST", &dev->sem_response,
-				     K_MSEC(100));
+				     NULL, 0, "AT+RST", &dev->sem_if_ready,
+				     K_MSEC(CONFIG_WIFI_ESP_RESET_TIMEOUT));
 		if (ret == 0 || ret != -ETIMEDOUT) {
 			break;
 		}
@@ -777,7 +785,7 @@ static void esp_reset(struct esp_data *dev)
 static void esp_iface_init(struct net_if *iface)
 {
 	struct device *dev = net_if_get_device(iface);
-	struct esp_data *data = dev->driver_data;
+	struct esp_data *data = dev->data;
 
 	net_if_flag_set(iface, NET_IF_NO_AUTO_START);
 	data->net_iface = iface;
@@ -796,11 +804,12 @@ static const struct net_wifi_mgmt_offload esp_api = {
 
 static int esp_init(struct device *dev)
 {
-	struct esp_data *data = dev->driver_data;
+	struct esp_data *data = dev->data;
 	int ret = 0;
 
 	k_sem_init(&data->sem_tx_ready, 0, 1);
 	k_sem_init(&data->sem_response, 0, 1);
+	k_sem_init(&data->sem_if_ready, 0, 1);
 	k_sem_init(&data->sem_if_up, 0, 1);
 
 	k_work_init(&data->init_work, esp_init_work);
@@ -812,7 +821,7 @@ static int esp_init(struct device *dev)
 
 	/* initialize the work queue */
 	k_work_q_start(&data->workq, esp_workq_stack,
-		       K_THREAD_STACK_SIZEOF(esp_workq_stack),
+		       K_KERNEL_STACK_SIZEOF(esp_workq_stack),
 		       K_PRIO_COOP(CONFIG_WIFI_ESP_WORKQ_THREAD_PRIORITY));
 	k_thread_name_set(&data->workq.thread, "esp_workq");
 
@@ -859,7 +868,7 @@ static int esp_init(struct device *dev)
 
 	/* start RX thread */
 	k_thread_create(&esp_rx_thread, esp_rx_stack,
-			K_THREAD_STACK_SIZEOF(esp_rx_stack),
+			K_KERNEL_STACK_SIZEOF(esp_rx_stack),
 			(k_thread_entry_t)esp_rx,
 			dev, NULL, NULL,
 			K_PRIO_COOP(CONFIG_WIFI_ESP_RX_THREAD_PRIORITY), 0,

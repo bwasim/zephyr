@@ -25,14 +25,14 @@ struct uart_cc32xx_dev_data_t {
 };
 
 #define DEV_CFG(dev) \
-	((const struct uart_device_config * const)(dev)->config_info)
+	((const struct uart_device_config * const)(dev)->config)
 #define DEV_DATA(dev) \
-	((struct uart_cc32xx_dev_data_t * const)(dev)->driver_data)
+	((struct uart_cc32xx_dev_data_t * const)(dev)->data)
 
 #define PRIME_CHAR '\r'
 
 /* Forward decls: */
-static struct device DEVICE_NAME_GET(uart_cc32xx_0);
+DEVICE_DECLARE(uart_cc32xx_0);
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 static void uart_cc32xx_isr(void *arg);
@@ -133,7 +133,7 @@ static int uart_cc32xx_err_check(struct device *dev)
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 
-static int uart_cc32xx_fifo_fill(struct device *dev, const u8_t *tx_data,
+static int uart_cc32xx_fifo_fill(struct device *dev, const uint8_t *tx_data,
 				 int size)
 {
 	const struct uart_device_config *config = DEV_CFG(dev);
@@ -152,7 +152,7 @@ static int uart_cc32xx_fifo_fill(struct device *dev, const u8_t *tx_data,
 	return (int)num_tx;
 }
 
-static int uart_cc32xx_fifo_read(struct device *dev, u8_t *rx_data,
+static int uart_cc32xx_fifo_read(struct device *dev, uint8_t *rx_data,
 				 const int size)
 {
 	const struct uart_device_config *config = DEV_CFG(dev);
@@ -282,7 +282,7 @@ static void uart_cc32xx_isr(void *arg)
 						    1);
 
 	if (dev_data->cb) {
-		dev_data->cb(dev_data->cb_data);
+		dev_data->cb(dev, dev_data->cb_data);
 	}
 	/*
 	 * RX/TX interrupt should have been implicitly cleared by Zephyr UART

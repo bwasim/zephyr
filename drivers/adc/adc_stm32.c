@@ -29,7 +29,7 @@ LOG_MODULE_REGISTER(adc_stm32);
 #if !defined(CONFIG_SOC_SERIES_STM32F0X) && \
 	!defined(CONFIG_SOC_SERIES_STM32L0X)
 #define RANK(n)		LL_ADC_REG_RANK_##n
-static const u32_t table_rank[] = {
+static const uint32_t table_rank[] = {
 	RANK(1),
 	RANK(2),
 	RANK(3),
@@ -49,7 +49,7 @@ static const u32_t table_rank[] = {
 };
 
 #define SEQ_LEN(n)	LL_ADC_REG_SEQ_SCAN_ENABLE_##n##RANKS
-static const u32_t table_seq_len[] = {
+static const uint32_t table_seq_len[] = {
 	LL_ADC_REG_SEQ_SCAN_DISABLE,
 	SEQ_LEN(2),
 	SEQ_LEN(3),
@@ -70,7 +70,7 @@ static const u32_t table_seq_len[] = {
 #endif
 
 #define RES(n)		LL_ADC_RESOLUTION_##n##B
-static const u32_t table_resolution[] = {
+static const uint32_t table_resolution[] = {
 #if defined(CONFIG_SOC_SERIES_STM32F1X)
 	RES(12),
 #elif !defined(CONFIG_SOC_SERIES_STM32H7X)
@@ -95,8 +95,8 @@ static const u32_t table_resolution[] = {
  * So all half cycles are counted as one.
  */
 #if defined(CONFIG_SOC_SERIES_STM32F0X) || defined(CONFIG_SOC_SERIES_STM32F1X)
-static const u16_t acq_time_tbl[8] = {2, 8, 14, 29, 42, 56, 72, 240};
-static const u32_t table_samp_time[] = {
+static const uint16_t acq_time_tbl[8] = {2, 8, 14, 29, 42, 56, 72, 240};
+static const uint32_t table_samp_time[] = {
 	SMP_TIME(1,   _5),
 	SMP_TIME(7,   S_5),
 	SMP_TIME(13,  S_5),
@@ -109,8 +109,8 @@ static const u32_t table_samp_time[] = {
 #elif defined(CONFIG_SOC_SERIES_STM32F2X) || \
 	defined(CONFIG_SOC_SERIES_STM32F4X) || \
 	defined(CONFIG_SOC_SERIES_STM32F7X)
-static const u16_t acq_time_tbl[8] = {3, 15, 28, 56, 84, 112, 144, 480};
-static const u32_t table_samp_time[] = {
+static const uint16_t acq_time_tbl[8] = {3, 15, 28, 56, 84, 112, 144, 480};
+static const uint32_t table_samp_time[] = {
 	SMP_TIME(3,   S),
 	SMP_TIME(15,  S),
 	SMP_TIME(28,  S),
@@ -122,8 +122,8 @@ static const u32_t table_samp_time[] = {
 };
 #elif defined(CONFIG_SOC_SERIES_STM32F3X)
 #ifdef ADC5_V1_1
-static const u16_t acq_time_tbl[8] = {2, 3, 5, 8, 20, 62, 182, 602};
-static const u32_t table_samp_time[] = {
+static const uint16_t acq_time_tbl[8] = {2, 3, 5, 8, 20, 62, 182, 602};
+static const uint32_t table_samp_time[] = {
 	SMP_TIME(1,   _5),
 	SMP_TIME(2,   S_5),
 	SMP_TIME(4,   S_5),
@@ -134,8 +134,8 @@ static const u32_t table_samp_time[] = {
 	SMP_TIME(601, S_5),
 };
 #else
-static const u16_t acq_time_tbl[8] = {2, 8, 14, 29, 42, 56, 72, 240};
-static const u32_t table_samp_time[] = {
+static const uint16_t acq_time_tbl[8] = {2, 8, 14, 29, 42, 56, 72, 240};
+static const uint32_t table_samp_time[] = {
 	SMP_TIME(1,   _5),
 	SMP_TIME(7,   S_5),
 	SMP_TIME(13,  S_5),
@@ -147,8 +147,8 @@ static const u32_t table_samp_time[] = {
 };
 #endif /* ADC5_V1_1 */
 #elif defined(CONFIG_SOC_SERIES_STM32L0X)
-static const u16_t acq_time_tbl[8] = {2, 4, 8, 13, 20, 40, 80, 161};
-static const u32_t table_samp_time[] = {
+static const uint16_t acq_time_tbl[8] = {2, 4, 8, 13, 20, 40, 80, 161};
+static const uint32_t table_samp_time[] = {
 	SMP_TIME(1,   _5),
 	SMP_TIME(3,   S_5),
 	SMP_TIME(7,   S_5),
@@ -161,8 +161,8 @@ static const u32_t table_samp_time[] = {
 #elif defined(CONFIG_SOC_SERIES_STM32L4X) || \
 	defined(CONFIG_SOC_SERIES_STM32WBX) || \
 	defined(CONFIG_SOC_SERIES_STM32G4X)
-static const u16_t acq_time_tbl[8] = {3, 7, 13, 25, 48, 93, 248, 641};
-static const u32_t table_samp_time[] = {
+static const uint16_t acq_time_tbl[8] = {3, 7, 13, 25, 48, 93, 248, 641};
+static const uint32_t table_samp_time[] = {
 	SMP_TIME(2,   S_5),
 	SMP_TIME(6,   S_5),
 	SMP_TIME(12,  S_5),
@@ -173,8 +173,8 @@ static const u32_t table_samp_time[] = {
 	SMP_TIME(640, S_5),
 };
 #elif defined(CONFIG_SOC_SERIES_STM32L1X)
-static const u16_t acq_time_tbl[8] = {5, 10, 17, 25, 49, 97, 193, 385};
-static const u32_t table_samp_time[] = {
+static const uint16_t acq_time_tbl[8] = {5, 10, 17, 25, 49, 97, 193, 385};
+static const uint32_t table_samp_time[] = {
 	SMP_TIME(4,   S),
 	SMP_TIME(9,   S),
 	SMP_TIME(16,  S),
@@ -185,8 +185,8 @@ static const u32_t table_samp_time[] = {
 	SMP_TIME(384, S),
 };
 #elif defined(CONFIG_SOC_SERIES_STM32H7X)
-static const u16_t acq_time_tbl[8] = {2, 3, 9, 17, 33, 65, 388, 811};
-static const u32_t table_samp_time[] = {
+static const uint16_t acq_time_tbl[8] = {2, 3, 9, 17, 33, 65, 388, 811};
+static const uint32_t table_samp_time[] = {
 	SMP_TIME(1,   _5),
 	SMP_TIME(2,   S_5),
 	SMP_TIME(8,   S_5),
@@ -204,13 +204,13 @@ static const u32_t table_samp_time[] = {
 struct adc_stm32_data {
 	struct adc_context ctx;
 	struct device *dev;
-	u16_t *buffer;
-	u16_t *repeat_buffer;
+	uint16_t *buffer;
+	uint16_t *repeat_buffer;
 
-	u8_t resolution;
-	u8_t channel_count;
+	uint8_t resolution;
+	uint8_t channel_count;
 #if defined(CONFIG_SOC_SERIES_STM32F0X) || defined(CONFIG_SOC_SERIES_STM32L0X)
-	s8_t acq_time_index;
+	int8_t acq_time_index;
 #endif
 };
 
@@ -224,11 +224,11 @@ struct adc_stm32_cfg {
 };
 
 static int check_buffer_size(const struct adc_sequence *sequence,
-			     u8_t active_channels)
+			     uint8_t active_channels)
 {
 	size_t needed_buffer_size;
 
-	needed_buffer_size = active_channels * sizeof(u16_t);
+	needed_buffer_size = active_channels * sizeof(uint16_t);
 
 	if (sequence->options) {
 		needed_buffer_size *= (1 + sequence->options->extra_samplings);
@@ -245,7 +245,7 @@ static int check_buffer_size(const struct adc_sequence *sequence,
 
 static void adc_stm32_start_conversion(struct device *dev)
 {
-	const struct adc_stm32_cfg *config = dev->config_info;
+	const struct adc_stm32_cfg *config = dev->config;
 	ADC_TypeDef *adc = (ADC_TypeDef *)config->base;
 
 	LOG_DBG("Starting conversion");
@@ -265,10 +265,10 @@ static void adc_stm32_start_conversion(struct device *dev)
 
 static int start_read(struct device *dev, const struct adc_sequence *sequence)
 {
-	const struct adc_stm32_cfg *config = dev->config_info;
-	struct adc_stm32_data *data = dev->driver_data;
+	const struct adc_stm32_cfg *config = dev->config;
+	struct adc_stm32_data *data = dev->data;
 	ADC_TypeDef *adc = (ADC_TypeDef *)config->base;
-	u8_t resolution;
+	uint8_t resolution;
 	int err;
 
 	switch (sequence->resolution) {
@@ -311,13 +311,13 @@ static int start_read(struct device *dev, const struct adc_sequence *sequence)
 		return -EINVAL;
 	}
 
-	u32_t channels = sequence->channels;
+	uint32_t channels = sequence->channels;
 
 	data->buffer = sequence->buffer;
-	u8_t index;
+	uint8_t index;
 
 	index = find_lsb_set(channels) - 1;
-	u32_t channel = __LL_ADC_DECIMAL_NB_TO_CHANNEL(index);
+	uint32_t channel = __LL_ADC_DECIMAL_NB_TO_CHANNEL(index);
 #if defined(CONFIG_SOC_SERIES_STM32H7X)
 	/*
 	 * Each channel in the sequence must be previously enabled in PCSEL.
@@ -388,9 +388,9 @@ static void adc_context_update_buffer_pointer(struct adc_context *ctx,
 static void adc_stm32_isr(void *arg)
 {
 	struct device *dev = (struct device *)arg;
-	struct adc_stm32_data *data = (struct adc_stm32_data *)dev->driver_data;
+	struct adc_stm32_data *data = (struct adc_stm32_data *)dev->data;
 	const struct adc_stm32_cfg *config =
-		(const struct adc_stm32_cfg *)dev->config_info;
+		(const struct adc_stm32_cfg *)dev->config;
 	ADC_TypeDef *adc = config->base;
 
 	*data->buffer++ = LL_ADC_REG_ReadConversionData32(adc);
@@ -403,7 +403,7 @@ static void adc_stm32_isr(void *arg)
 static int adc_stm32_read(struct device *dev,
 			  const struct adc_sequence *sequence)
 {
-	struct adc_stm32_data *data = dev->driver_data;
+	struct adc_stm32_data *data = dev->data;
 	int error;
 
 	adc_context_lock(&data->ctx, false, NULL);
@@ -418,7 +418,7 @@ static int adc_stm32_read_async(struct device *dev,
 				 const struct adc_sequence *sequence,
 				 struct k_poll_signal *async)
 {
-	struct adc_stm32_data *data = dev->driver_data;
+	struct adc_stm32_data *data = dev->data;
 	int error;
 
 	adc_context_lock(&data->ctx, true, async);
@@ -429,7 +429,7 @@ static int adc_stm32_read_async(struct device *dev,
 }
 #endif
 
-static int adc_stm32_check_acq_time(u16_t acq_time)
+static int adc_stm32_check_acq_time(uint16_t acq_time)
 {
 	for (int i = 0; i < 8; i++) {
 		if (acq_time == ADC_ACQ_TIME(ADC_ACQ_TIME_TICKS,
@@ -446,11 +446,11 @@ static int adc_stm32_check_acq_time(u16_t acq_time)
 	return -EINVAL;
 }
 
-static void adc_stm32_setup_speed(struct device *dev, u8_t id,
-				  u8_t acq_time_index)
+static void adc_stm32_setup_speed(struct device *dev, uint8_t id,
+				  uint8_t acq_time_index)
 {
 	const struct adc_stm32_cfg *config =
-		(const struct adc_stm32_cfg *)dev->config_info;
+		(const struct adc_stm32_cfg *)dev->config;
 	ADC_TypeDef *adc = config->base;
 
 #if defined(CONFIG_SOC_SERIES_STM32F0X) || defined(CONFIG_SOC_SERIES_STM32L0X)
@@ -467,7 +467,7 @@ static int adc_stm32_channel_setup(struct device *dev,
 			    const struct adc_channel_cfg *channel_cfg)
 {
 #if defined(CONFIG_SOC_SERIES_STM32F0X) || defined(CONFIG_SOC_SERIES_STM32L0X)
-	struct adc_stm32_data *data = dev->driver_data;
+	struct adc_stm32_data *data = dev->data;
 #endif
 	int acq_time_index;
 
@@ -523,7 +523,7 @@ static int adc_stm32_channel_setup(struct device *dev,
 static void adc_stm32_calib(struct device *dev)
 {
 	const struct adc_stm32_cfg *config =
-		(const struct adc_stm32_cfg *)dev->config_info;
+		(const struct adc_stm32_cfg *)dev->config;
 	ADC_TypeDef *adc = config->base;
 
 #if defined(CONFIG_SOC_SERIES_STM32F3X) || \
@@ -544,8 +544,8 @@ static void adc_stm32_calib(struct device *dev)
 
 static int adc_stm32_init(struct device *dev)
 {
-	struct adc_stm32_data *data = dev->driver_data;
-	const struct adc_stm32_cfg *config = dev->config_info;
+	struct adc_stm32_data *data = dev->data;
+	const struct adc_stm32_cfg *config = dev->config;
 	struct device *clk =
 		device_get_binding(STM32_CLOCK_CONTROL_NAME);
 	ADC_TypeDef *adc = (ADC_TypeDef *)config->base;
@@ -648,7 +648,7 @@ static int adc_stm32_init(struct device *dev)
 	 * ADC modules on these series have to wait for some cycles to be
 	 * enabled.
 	 */
-	u32_t adc_rate, wait_cycles;
+	uint32_t adc_rate, wait_cycles;
 
 	if (clock_control_get_rate(clk,
 		(clock_control_subsys_t *) &config->pclken, &adc_rate) < 0) {
@@ -673,7 +673,7 @@ static int adc_stm32_init(struct device *dev)
 	 * still not stabilized, this will wait for a short time to ensure ADC
 	 * modules are properly enabled.
 	 */
-	u32_t countTimeout = 0;
+	uint32_t countTimeout = 0;
 
 	while (LL_ADC_IsActiveFlag_ADRDY(adc) == 0) {
 		if (LL_ADC_IsEnabled(adc) == 0UL) {

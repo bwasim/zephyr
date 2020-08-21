@@ -36,18 +36,18 @@ struct uart_cc13xx_cc26xx_data {
 	bool rx_constrained;
 #endif
 #ifdef CONFIG_DEVICE_POWER_MANAGEMENT
-	u32_t pm_state;
+	uint32_t pm_state;
 #endif
 };
 
 static inline struct uart_cc13xx_cc26xx_data *get_dev_data(struct device *dev)
 {
-	return dev->driver_data;
+	return dev->data;
 }
 
 static inline const struct uart_device_config *get_dev_conf(struct device *dev)
 {
-	return dev->config_info;
+	return dev->config;
 }
 
 static int uart_cc13xx_cc26xx_poll_in(struct device *dev, unsigned char *c)
@@ -74,7 +74,7 @@ static void uart_cc13xx_cc26xx_poll_out(struct device *dev, unsigned char c)
 
 static int uart_cc13xx_cc26xx_err_check(struct device *dev)
 {
-	u32_t flags = UARTRxErrorGet(get_dev_conf(dev)->regs);
+	uint32_t flags = UARTRxErrorGet(get_dev_conf(dev)->regs);
 
 	int error = (flags & UART_RXERROR_FRAMING ? UART_ERROR_FRAMING : 0) |
 		    (flags & UART_RXERROR_PARITY ? UART_ERROR_PARITY : 0) |
@@ -89,7 +89,7 @@ static int uart_cc13xx_cc26xx_err_check(struct device *dev)
 static int uart_cc13xx_cc26xx_configure(struct device *dev,
 					const struct uart_config *cfg)
 {
-	u32_t line_ctrl = 0;
+	uint32_t line_ctrl = 0;
 	bool flow_ctrl;
 
 	switch (cfg->parity) {
@@ -193,7 +193,7 @@ static int uart_cc13xx_cc26xx_config_get(struct device *dev,
 
 #ifdef CONFIG_UART_INTERRUPT_DRIVEN
 
-static int uart_cc13xx_cc26xx_fifo_fill(struct device *dev, const u8_t *buf,
+static int uart_cc13xx_cc26xx_fifo_fill(struct device *dev, const uint8_t *buf,
 					int len)
 {
 	int n = 0;
@@ -208,7 +208,7 @@ static int uart_cc13xx_cc26xx_fifo_fill(struct device *dev, const u8_t *buf,
 	return n;
 }
 
-static int uart_cc13xx_cc26xx_fifo_read(struct device *dev, u8_t *buf,
+static int uart_cc13xx_cc26xx_fifo_read(struct device *dev, uint8_t *buf,
 					const int len)
 {
 	int c, n;
@@ -323,7 +323,7 @@ static void uart_cc13xx_cc26xx_irq_err_disable(struct device *dev)
 
 static int uart_cc13xx_cc26xx_irq_is_pending(struct device *dev)
 {
-	u32_t status = UARTIntStatus(get_dev_conf(dev)->regs, true);
+	uint32_t status = UARTIntStatus(get_dev_conf(dev)->regs, true);
 
 	return status & (UART_INT_TX | UART_INT_RX) ? 1 : 0;
 }
@@ -345,10 +345,11 @@ static void uart_cc13xx_cc26xx_irq_callback_set(
 
 static void uart_cc13xx_cc26xx_isr(void *arg)
 {
-	struct uart_cc13xx_cc26xx_data *data = get_dev_data(arg);
+	struct device *dev = (struct device *)arg;
+	struct uart_cc13xx_cc26xx_data *data = get_dev_data(dev);
 
 	if (data->callback) {
-		data->callback(data->user_data);
+		data->callback(dev, data->user_data);
 	}
 }
 
@@ -368,7 +369,7 @@ static int postNotifyFxn(unsigned int eventType, uintptr_t eventArg,
 {
 	struct device *dev = (struct device *)clientArg;
 	int ret = Power_NOTIFYDONE;
-	s16_t res_id;
+	int16_t res_id;
 
 	/* Reconfigure the hardware if returning from standby */
 	if (eventType == PowerCC26XX_AWAKE_STANDBY) {
@@ -397,7 +398,7 @@ static int postNotifyFxn(unsigned int eventType, uintptr_t eventArg,
 
 #ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 static int uart_cc13xx_cc26xx_set_power_state(struct device *dev,
-	u32_t new_state)
+	uint32_t new_state)
 {
 	int ret = 0;
 
@@ -441,13 +442,13 @@ static int uart_cc13xx_cc26xx_set_power_state(struct device *dev,
 	return ret;
 }
 
-static int uart_cc13xx_cc26xx_pm_control(struct device *dev, u32_t ctrl_command,
+static int uart_cc13xx_cc26xx_pm_control(struct device *dev, uint32_t ctrl_command,
 	void *context, device_pm_cb cb, void *arg)
 {
 	int ret = 0;
 
 	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
-		u32_t new_state = *((const u32_t *)context);
+		uint32_t new_state = *((const uint32_t *)context);
 
 		if (new_state != get_dev_data(dev)->pm_state) {
 			ret = uart_cc13xx_cc26xx_set_power_state(dev,
@@ -455,7 +456,7 @@ static int uart_cc13xx_cc26xx_pm_control(struct device *dev, u32_t ctrl_command,
 		}
 	} else {
 		__ASSERT_NO_MSG(ctrl_command == DEVICE_PM_GET_POWER_STATE);
-		*((u32_t *)context) = get_dev_data(dev)->pm_state;
+		*((uint32_t *)context) = get_dev_data(dev)->pm_state;
 	}
 
 	if (cb) {
@@ -511,7 +512,7 @@ static const struct uart_driver_api uart_cc13xx_cc26xx_driver_api = {
 #else
 #define UART_CC13XX_CC26XX_POWER_UART(n)				\
 	do {								\
-		u32_t domain, periph;					\
+		uint32_t domain, periph;					\
 									\
 		/* Enable UART power domain */				\
 		if (DT_INST_REG_ADDR(n) == 0x40001000) {		\

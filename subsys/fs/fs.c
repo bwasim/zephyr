@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <init.h>
 #include <fs/fs.h>
+#include <sys/stat.h>
 
 
 #define LOG_LEVEL CONFIG_FS_LOG_LEVEL
@@ -75,10 +76,13 @@ static int fs_get_mnt_point(struct fs_mount_t **mnt_pntp,
 }
 
 /* File operations */
-int fs_open(struct fs_file_t *zfp, const char *file_name)
+int fs_open(struct fs_file_t *zfp, const char *file_name, fs_mode_t flags)
 {
 	struct fs_mount_t *mp;
 	int rc = -EINVAL;
+
+	/* COpy flags to zfp for use with other fs_ API calls */
+	zfp->flags = flags;
 
 	if ((file_name == NULL) ||
 			(strlen(file_name) <= 1) || (file_name[0] != '/')) {
@@ -95,7 +99,7 @@ int fs_open(struct fs_file_t *zfp, const char *file_name)
 	zfp->mp = mp;
 
 	if (zfp->mp->fs->open != NULL) {
-		rc = zfp->mp->fs->open(zfp, file_name);
+		rc = zfp->mp->fs->open(zfp, file_name, flags);
 		if (rc < 0) {
 			LOG_ERR("file open error (%d)", rc);
 			return rc;
@@ -108,6 +112,10 @@ int fs_open(struct fs_file_t *zfp, const char *file_name)
 int fs_close(struct fs_file_t *zfp)
 {
 	int rc = -EINVAL;
+
+	if (zfp->mp == NULL) {
+		return 0;
+	}
 
 	if (zfp->mp->fs->close != NULL) {
 		rc = zfp->mp->fs->close(zfp);
@@ -126,6 +134,10 @@ ssize_t fs_read(struct fs_file_t *zfp, void *ptr, size_t size)
 {
 	int rc = -EINVAL;
 
+	if (zfp->mp == NULL) {
+		return -EBADF;
+	}
+
 	if (zfp->mp->fs->read != NULL) {
 		rc = zfp->mp->fs->read(zfp, ptr, size);
 		if (rc < 0) {
@@ -139,6 +151,10 @@ ssize_t fs_read(struct fs_file_t *zfp, void *ptr, size_t size)
 ssize_t fs_write(struct fs_file_t *zfp, const void *ptr, size_t size)
 {
 	int rc = -EINVAL;
+
+	if (zfp->mp == NULL) {
+		return -EBADF;
+	}
 
 	if (zfp->mp->fs->write != NULL) {
 		rc = zfp->mp->fs->write(zfp, ptr, size);
@@ -154,6 +170,10 @@ int fs_seek(struct fs_file_t *zfp, off_t offset, int whence)
 {
 	int rc = -EINVAL;
 
+	if (zfp->mp == NULL) {
+		return -EBADF;
+	}
+
 	if (zfp->mp->fs->lseek != NULL) {
 		rc = zfp->mp->fs->lseek(zfp, offset, whence);
 		if (rc < 0) {
@@ -167,6 +187,10 @@ int fs_seek(struct fs_file_t *zfp, off_t offset, int whence)
 off_t fs_tell(struct fs_file_t *zfp)
 {
 	int rc = -EINVAL;
+
+	if (zfp->mp == NULL) {
+		return -EBADF;
+	}
 
 	if (zfp->mp->fs->tell != NULL) {
 		rc = zfp->mp->fs->tell(zfp);
@@ -182,6 +206,10 @@ int fs_truncate(struct fs_file_t *zfp, off_t length)
 {
 	int rc = -EINVAL;
 
+	if (zfp->mp == NULL) {
+		return -EBADF;
+	}
+
 	if (zfp->mp->fs->truncate != NULL) {
 		rc = zfp->mp->fs->truncate(zfp, length);
 		if (rc < 0) {
@@ -195,6 +223,10 @@ int fs_truncate(struct fs_file_t *zfp, off_t length)
 int fs_sync(struct fs_file_t *zfp)
 {
 	int rc = -EINVAL;
+
+	if (zfp->mp == NULL) {
+		return -EBADF;
+	}
 
 	if (zfp->mp->fs->sync != NULL) {
 		rc = zfp->mp->fs->sync(zfp);

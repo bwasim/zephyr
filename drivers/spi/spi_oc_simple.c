@@ -17,7 +17,7 @@ LOG_MODULE_REGISTER(spi_oc_simple);
 #include "spi_oc_simple.h"
 
 /* Bit 5:4 == ESPR, Bit 1:0 == SPR */
-u8_t DIVIDERS[] = { 0x00,       /*   2  */
+uint8_t DIVIDERS[] = { 0x00,       /*   2  */
 		    0x01,       /*   4  */
 		    0x10,       /*   8  */
 		    0x02,       /*  16  */
@@ -34,7 +34,7 @@ static int spi_oc_simple_configure(const struct spi_oc_simple_cfg *info,
 				struct spi_oc_simple_data *spi,
 				const struct spi_config *config)
 {
-	u8_t spcr = 0U;
+	uint8_t spcr = 0U;
 	int i;
 
 	if (spi_context_configured(&spi->ctx, config)) {
@@ -90,11 +90,11 @@ int spi_oc_simple_transceive(struct device *dev,
 			  const struct spi_buf_set *tx_bufs,
 			  const struct spi_buf_set *rx_bufs)
 {
-	const struct spi_oc_simple_cfg *info = dev->config_info;
+	const struct spi_oc_simple_cfg *info = dev->config;
 	struct spi_oc_simple_data *spi = SPI_OC_SIMPLE_DATA(dev);
 	struct spi_context *ctx = &spi->ctx;
 
-	u8_t rx_byte;
+	uint8_t rx_byte;
 	size_t i;
 	size_t cur_xfer_len;
 	int rc;
@@ -184,7 +184,7 @@ static struct spi_driver_api spi_oc_simple_api = {
 
 int spi_oc_simple_init(struct device *dev)
 {
-	const struct spi_oc_simple_cfg *info = dev->config_info;
+	const struct spi_oc_simple_cfg *info = dev->config;
 
 	/* Clear chip selects */
 	sys_write8(0, SPI_OC_SIMPLE_SPSS(info));

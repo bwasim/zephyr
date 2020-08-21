@@ -87,7 +87,7 @@ void z_x86_page_fault_handler(z_arch_esf_t *esf);
  * @param cs Code segment of faulting context
  * @return true if addr/size region is not within the thread stack
  */
-bool z_x86_check_stack_bounds(uintptr_t addr, size_t size, u16_t cs);
+bool z_x86_check_stack_bounds(uintptr_t addr, size_t size, uint16_t cs);
 #endif /* CONFIG_THREAD_STACK_INFO */
 
 #ifdef CONFIG_USERSPACE
@@ -110,6 +110,10 @@ void z_x86_apply_mem_domain(struct x86_page_tables *ptables,
 #endif /* CONFIG_USERSPACE */
 
 void z_x86_do_kernel_oops(const z_arch_esf_t *esf);
+
+#ifdef CONFIG_X86_STACK_PROTECTION
+void z_x86_set_stack_guard(k_thread_stack_t *stack);
+#endif
 
 #endif /* !_ASMLANGUAGE */
 

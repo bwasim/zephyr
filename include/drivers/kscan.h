@@ -41,7 +41,7 @@ extern "C" {
  * @param row	Describes row change.
  * @param pressed Describes the kind of key event.
  */
-typedef void (*kscan_callback_t)(struct device *dev, u32_t row, u32_t column,
+typedef void (*kscan_callback_t)(struct device *dev, uint32_t row, uint32_t column,
 				 bool pressed);
 
 /**
@@ -82,7 +82,7 @@ static inline int z_impl_kscan_config(struct device *dev,
 					kscan_callback_t callback)
 {
 	const struct kscan_driver_api *api =
-				(struct kscan_driver_api *)dev->driver_api;
+				(struct kscan_driver_api *)dev->api;
 
 	return api->config(dev, callback);
 }
@@ -98,7 +98,7 @@ __syscall int kscan_enable_callback(struct device *dev);
 static inline int z_impl_kscan_enable_callback(struct device *dev)
 {
 	const struct kscan_driver_api *api =
-			(const struct kscan_driver_api *)dev->driver_api;
+			(const struct kscan_driver_api *)dev->api;
 
 	if (api->enable_callback == NULL) {
 		return -ENOTSUP;
@@ -119,7 +119,7 @@ __syscall int kscan_disable_callback(struct device *dev);
 static inline int z_impl_kscan_disable_callback(struct device *dev)
 {
 	const struct kscan_driver_api *api =
-			(const struct kscan_driver_api *)dev->driver_api;
+			(const struct kscan_driver_api *)dev->api;
 
 	if (api->disable_callback == NULL) {
 		return -ENOTSUP;

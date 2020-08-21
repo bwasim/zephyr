@@ -4,14 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * @addtogroup t_gpio_basic_api
- * @{
- * @defgroup t_gpio_callback_trigger test_gpio_callback_trigger
- * @brief TestPurpose: verify zephyr gpio callback triggered
- * under different INT modes
- * @}
- */
 
 #include "test_gpio.h"
 
@@ -19,7 +11,7 @@ static struct drv_data data;
 static int cb_cnt;
 
 static void callback(struct device *dev,
-		     struct gpio_callback *gpio_cb, u32_t pins)
+		     struct gpio_callback *gpio_cb, uint32_t pins)
 {
 	const struct drv_data *dd = CONTAINER_OF(gpio_cb,
 						 struct drv_data, gpio_cb);
@@ -48,7 +40,7 @@ static int test_callback(int mode)
 	gpio_pin_interrupt_configure(dev, PIN_OUT, GPIO_INT_DISABLE);
 
 	/* 1. set PIN_OUT to logical initial state inactive */
-	u32_t out_flags = GPIO_OUTPUT_LOW;
+	uint32_t out_flags = GPIO_OUTPUT_LOW;
 
 	if ((mode & GPIO_INT_LOW_0) != 0) {
 		out_flags = GPIO_OUTPUT_HIGH | GPIO_ACTIVE_LOW;

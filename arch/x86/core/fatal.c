@@ -18,12 +18,20 @@ FUNC_NORETURN void arch_system_halt(unsigned int reason)
 
 	/* Causes QEMU to exit. We passed the following on the command line:
 	 * -device isa-debug-exit,iobase=0xf4,iosize=0x04
+	 *
+	 * For any value of the first argument X, the return value of the
+	 * QEMU process is (X * 2) + 1.
+	 *
+	 * It has been observed that if the emulator exits for a triple-fault
+	 * (often due to bad page tables or other CPU structures) it will
+	 * terminate with 0 error code.
 	 */
-	sys_out32(0, 0xf4);
+	sys_out32(reason, 0xf4);
 	CODE_UNREACHABLE;
 }
 #endif
 
+#ifdef CONFIG_THREAD_STACK_INFO
 static inline uintptr_t esf_get_sp(const z_arch_esf_t *esf)
 {
 #ifdef CONFIG_X86_64
@@ -32,7 +40,9 @@ static inline uintptr_t esf_get_sp(const z_arch_esf_t *esf)
 	return esf->esp;
 #endif
 }
+#endif
 
+#ifdef CONFIG_EXCEPTION_DEBUG
 static inline uintptr_t esf_get_code(const z_arch_esf_t *esf)
 {
 #ifdef CONFIG_X86_64
@@ -41,14 +51,16 @@ static inline uintptr_t esf_get_code(const z_arch_esf_t *esf)
 	return esf->errorCode;
 #endif
 }
+#endif
 
 #ifdef CONFIG_THREAD_STACK_INFO
-bool z_x86_check_stack_bounds(uintptr_t addr, size_t size, u16_t cs)
+bool z_x86_check_stack_bounds(uintptr_t addr, size_t size, uint16_t cs)
 {
 	uintptr_t start, end;
 
-	if (arch_is_in_isr()) {
-		/* We were servicing an interrupt */
+	if (_current == NULL || arch_is_in_isr()) {
+		/* We were servicing an interrupt or in early boot environment
+		 * and are supposed to be on the interrupt stack */
 		int cpu_id;
 
 #ifdef CONFIG_SMP
@@ -56,7 +68,7 @@ bool z_x86_check_stack_bounds(uintptr_t addr, size_t size, u16_t cs)
 #else
 		cpu_id = 0;
 #endif
-		start = (uintptr_t)Z_THREAD_STACK_BUFFER(
+		start = (uintptr_t)Z_KERNEL_STACK_BUFFER(
 		    z_interrupt_stacks[cpu_id]);
 		end = start + CONFIG_ISR_STACK_SIZE;
 	} else if ((cs & 0x3U) != 0U ||
@@ -89,7 +101,7 @@ struct stack_frame {
 
 #define MAX_STACK_FRAMES 8
 
-static void unwind_stack(uintptr_t base_ptr, u16_t cs)
+static void unwind_stack(uintptr_t base_ptr, uint16_t cs)
 {
 	struct stack_frame *frame;
 	int i;
@@ -305,11 +317,21 @@ static void dump_page_fault(z_arch_esf_t *esf)
 FUNC_NORETURN void z_x86_fatal_error(unsigned int reason,
 				     const z_arch_esf_t *esf)
 {
-#ifdef CONFIG_EXCEPTION_DEBUG
 	if (esf != NULL) {
+#ifdef CONFIG_EXCEPTION_DEBUG
 		dump_regs(esf);
-	}
 #endif
+#if defined(CONFIG_ASSERT) && defined(CONFIG_X86_64)
+		if (esf->rip == 0xb9) {
+			/* See implementation of __resume in locore.S. This is
+			 * never a valid RIP value. Treat this as a kernel
+			 * panic.
+			 */
+			LOG_ERR("Attempt to resume un-suspended thread object");
+			reason = K_ERR_KERNEL_PANIC;
+		}
+#endif
+	}
 	z_fatal_error(reason, esf);
 	CODE_UNREACHABLE;
 }
@@ -342,7 +364,7 @@ void z_x86_page_fault_handler(z_arch_esf_t *esf)
 #ifdef CONFIG_X86_64
 		if ((void *)esf->rip >= exceptions[i].start &&
 		    (void *)esf->rip < exceptions[i].end) {
-			esf->rip = (u64_t)(exceptions[i].fixup);
+			esf->rip = (uint64_t)(exceptions[i].fixup);
 			return;
 		}
 #else

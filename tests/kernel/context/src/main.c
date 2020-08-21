@@ -90,10 +90,10 @@
 #error Timer type is not defined for this platform
 #endif
 
-/* Nios II and RISCV without CONFIG_RISCV_HAS_CPU_IDLE
+/* Cortex-M1, Nios II, and RISCV without CONFIG_RISCV_HAS_CPU_IDLE
  * do have a power saving instruction, so k_cpu_idle() returns immediately
  */
-#if !defined(CONFIG_NIOS2) && \
+#if !defined(CONFIG_CPU_CORTEX_M1) && !defined(CONFIG_NIOS2) && \
 	(!defined(CONFIG_RISCV) || defined(CONFIG_RISCV_HAS_CPU_IDLE))
 #define HAS_POWERSAVE_INSTRUCTION
 #endif
@@ -670,7 +670,7 @@ static void kernel_thread_entry(void *_thread_id, void *arg1, void *arg2)
  */
 struct timeout_order {
 	void *link_in_fifo;
-	s32_t timeout;
+	int32_t timeout;
 	int timeout_order;
 	int q_order;
 };
@@ -693,7 +693,7 @@ static struct k_thread timeout_threads[NUM_TIMEOUT_THREADS];
 /* a thread busy waits */
 static void busy_wait_thread(void *mseconds, void *arg2, void *arg3)
 {
-	u32_t usecs;
+	uint32_t usecs;
 
 	ARG_UNUSED(arg2);
 	ARG_UNUSED(arg3);
@@ -733,7 +733,7 @@ static void busy_wait_thread(void *mseconds, void *arg2, void *arg3)
 /* a thread sleeps and times out, then reports through a fifo */
 static void thread_sleep(void *delta, void *arg2, void *arg3)
 {
-	s64_t timestamp;
+	int64_t timestamp;
 	int timeout = POINTER_TO_INT(delta);
 
 	ARG_UNUSED(arg2);
@@ -778,7 +778,7 @@ static void delayed_thread(void *num, void *arg2, void *arg3)
  */
 static void test_busy_wait(void)
 {
-	s32_t timeout;
+	int32_t timeout;
 	int rv;
 
 	timeout = 20;           /* in ms */
@@ -803,7 +803,7 @@ static void test_busy_wait(void)
 static void test_k_sleep(void)
 {
 	struct timeout_order *data;
-	s32_t timeout;
+	int32_t timeout;
 	int rv;
 	int i;
 

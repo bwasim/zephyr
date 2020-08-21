@@ -25,7 +25,7 @@ LOG_MODULE_REGISTER(LIS2MDL, CONFIG_SENSOR_LOG_LEVEL);
 #ifdef CONFIG_LIS2MDL_MAG_ODR_RUNTIME
 static int lis2mdl_set_odr(struct device *dev, const struct sensor_value *val)
 {
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
+	struct lis2mdl_data *lis2mdl = dev->data;
 	lis2mdl_odr_t odr;
 
 	switch (val->val1) {
@@ -56,8 +56,8 @@ static int lis2mdl_set_odr(struct device *dev, const struct sensor_value *val)
 static int lis2mdl_set_hard_iron(struct device *dev, enum sensor_channel chan,
 				   const struct sensor_value *val)
 {
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
-	u8_t i;
+	struct lis2mdl_data *lis2mdl = dev->data;
+	uint8_t i;
 	union axis3bit16_t offset;
 
 	for (i = 0U; i < 3; i++) {
@@ -72,10 +72,10 @@ static void lis2mdl_channel_get_mag(struct device *dev,
 				      enum sensor_channel chan,
 				      struct sensor_value *val)
 {
-	s32_t cval;
+	int32_t cval;
 	int i;
-	u8_t ofs_start, ofs_stop;
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
+	uint8_t ofs_start, ofs_stop;
+	struct lis2mdl_data *lis2mdl = dev->data;
 	struct sensor_value *pval = val;
 
 	switch (chan) {
@@ -105,7 +105,7 @@ static void lis2mdl_channel_get_mag(struct device *dev,
 static void lis2mdl_channel_get_temp(struct device *dev,
 				       struct sensor_value *val)
 {
-	struct lis2mdl_data *drv_data = dev->driver_data;
+	struct lis2mdl_data *drv_data = dev->data;
 
 	val->val1 = drv_data->temp_sample / 100;
 	val->val2 = (drv_data->temp_sample % 100) * 10000;
@@ -173,7 +173,7 @@ static int lis2mdl_attr_set(struct device *dev,
 
 static int lis2mdl_sample_fetch_mag(struct device *dev)
 {
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
+	struct lis2mdl_data *lis2mdl = dev->data;
 	union axis3bit16_t raw_mag;
 
 	/* fetch raw data sample */
@@ -191,9 +191,9 @@ static int lis2mdl_sample_fetch_mag(struct device *dev)
 
 static int lis2mdl_sample_fetch_temp(struct device *dev)
 {
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
+	struct lis2mdl_data *lis2mdl = dev->data;
 	union axis1bit16_t raw_temp;
-	s32_t temp;
+	int32_t temp;
 
 	/* fetch raw temperature sample */
 	if (lis2mdl_temperature_raw_get(lis2mdl->ctx, raw_temp.u8bit) < 0) {
@@ -242,9 +242,8 @@ static const struct sensor_driver_api lis2mdl_driver_api = {
 
 static int lis2mdl_init_interface(struct device *dev)
 {
-	const struct lis2mdl_config *const config =
-						dev->config_info;
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
+	const struct lis2mdl_config *const config = dev->config;
+	struct lis2mdl_data *lis2mdl = dev->data;
 
 	lis2mdl->bus = device_get_binding(config->master_dev_name);
 	if (!lis2mdl->bus) {
@@ -273,6 +272,7 @@ static const struct lis2mdl_config lis2mdl_dev_config = {
 #if DT_INST_SPI_DEV_HAS_CS_GPIOS(0)
 	.gpio_cs_port	    = DT_INST_SPI_DEV_CS_GPIOS_LABEL(0),
 	.cs_gpio	    = DT_INST_SPI_DEV_CS_GPIOS_PIN(0),
+	.cs_gpio_flags	    = DT_INST_SPI_DEV_CS_GPIOS_FLAGS(0),
 
 	.spi_conf.cs        =  &lis2mdl_data.cs_ctrl,
 #else
@@ -288,8 +288,8 @@ static const struct lis2mdl_config lis2mdl_dev_config = {
 
 static int lis2mdl_init(struct device *dev)
 {
-	struct lis2mdl_data *lis2mdl = dev->driver_data;
-	u8_t wai;
+	struct lis2mdl_data *lis2mdl = dev->data;
+	uint8_t wai;
 
 	if (lis2mdl_init_interface(dev)) {
 		return -EINVAL;

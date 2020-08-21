@@ -26,17 +26,16 @@ extern void *_VectorTable;
 #ifdef CONFIG_DEVICE_POWER_MANAGEMENT
 #include <power/power.h>
 #include <kernel_structs.h>
-#include <v2/irq.h>
 
 #ifdef CONFIG_ARC_SECURE_FIRMWARE
 #undef _ARC_V2_IRQ_VECT_BASE
 #define _ARC_V2_IRQ_VECT_BASE _ARC_V2_IRQ_VECT_BASE_S
 #endif
 
-static u32_t _arc_v2_irq_unit_device_power_state = DEVICE_PM_ACTIVE_STATE;
+static uint32_t _arc_v2_irq_unit_device_power_state = DEVICE_PM_ACTIVE_STATE;
 struct arc_v2_irq_unit_ctx {
-	u32_t irq_ctrl; /* Interrupt Context Saving Control Register. */
-	u32_t irq_vect_base; /* Interrupt Vector Base. */
+	uint32_t irq_ctrl; /* Interrupt Context Saving Control Register. */
+	uint32_t irq_vect_base; /* Interrupt Vector Base. */
 
 	/*
 	 * IRQ configuration:
@@ -44,7 +43,7 @@ struct arc_v2_irq_unit_ctx {
 	 * - IRQ Trigger:BIT(1)
 	 * - IRQ Enable:BIT(0)
 	 */
-	u8_t irq_config[CONFIG_NUM_IRQS - 16];
+	uint8_t irq_config[CONFIG_NUM_IRQS - 16];
 };
 static struct arc_v2_irq_unit_ctx ctx;
 #endif
@@ -100,7 +99,7 @@ static int arc_v2_irq_unit_init(struct device *unused)
  */
 static int arc_v2_irq_unit_suspend(struct device *dev)
 {
-	u8_t irq;
+	uint8_t irq;
 
 	ARG_UNUSED(dev);
 
@@ -136,7 +135,7 @@ static int arc_v2_irq_unit_suspend(struct device *dev)
  */
 static int arc_v2_irq_unit_resume(struct device *dev)
 {
-	u8_t irq;
+	uint8_t irq;
 
 	ARG_UNUSED(dev);
 
@@ -193,19 +192,19 @@ static int arc_v2_irq_unit_get_state(struct device *dev)
  * @return operation result
  */
 static int arc_v2_irq_unit_device_ctrl(struct device *device,
-		u32_t ctrl_command, void *context, device_pm_cb cb, void *arg)
+		uint32_t ctrl_command, void *context, device_pm_cb cb, void *arg)
 {
 	int ret = 0;
 	unsigned int key = arch_irq_lock();
 
 	if (ctrl_command == DEVICE_PM_SET_POWER_STATE) {
-		if (*((u32_t *)context) == DEVICE_PM_SUSPEND_STATE) {
+		if (*((uint32_t *)context) == DEVICE_PM_SUSPEND_STATE) {
 			ret = arc_v2_irq_unit_suspend(device);
-		} else if (*((u32_t *)context) == DEVICE_PM_ACTIVE_STATE) {
+		} else if (*((uint32_t *)context) == DEVICE_PM_ACTIVE_STATE) {
 			ret = arc_v2_irq_unit_resume(device);
 		}
 	} else if (ctrl_command == DEVICE_PM_GET_POWER_STATE) {
-		*((u32_t *)context) = arc_v2_irq_unit_get_state(device);
+		*((uint32_t *)context) = arc_v2_irq_unit_get_state(device);
 	}
 
 	arch_irq_unlock(key);

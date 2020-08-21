@@ -26,7 +26,7 @@ static int video_sw_generator_set_fmt(struct device *dev,
 				      enum video_endpoint_id ep,
 				      struct video_format *fmt)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	if (ep != VIDEO_EP_OUT) {
 		return -EINVAL;
@@ -41,7 +41,7 @@ static int video_sw_generator_get_fmt(struct device *dev,
 				      enum video_endpoint_id ep,
 				      struct video_format *fmt)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	if (ep != VIDEO_EP_OUT) {
 		return -EINVAL;
@@ -54,14 +54,14 @@ static int video_sw_generator_get_fmt(struct device *dev,
 
 static int video_sw_generator_stream_start(struct device *dev)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	return k_delayed_work_submit(&data->buf_work, K_MSEC(33));
 }
 
 static int video_sw_generator_stream_stop(struct device *dev)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	k_delayed_work_cancel(&data->buf_work);
 
@@ -69,7 +69,7 @@ static int video_sw_generator_stream_stop(struct device *dev)
 }
 
 /* Black, Blue, Red, Purple, Green, Aqua, Yellow, White */
-u16_t rgb565_colorbar_value[] = { 0x0000, 0x001F, 0xF800, 0xF81F,
+uint16_t rgb565_colorbar_value[] = { 0x0000, 0x001F, 0xF800, 0xF81F,
 				  0x07E0, 0x07FF, 0xFFE0, 0xFFFF };
 
 static void __fill_buffer_colorbar(struct video_sw_generator_data *data,
@@ -82,7 +82,7 @@ static void __fill_buffer_colorbar(struct video_sw_generator_data *data,
 		for (w = 0; w < data->fmt.width; w++) {
 			int color_idx =  data->ctrl_vflip ? 7 - w / bw : w / bw;
 			if (data->fmt.pixelformat == VIDEO_PIX_FMT_RGB565) {
-				u16_t *pixel = (u16_t *)&vbuf->buffer[i];
+				uint16_t *pixel = (uint16_t *)&vbuf->buffer[i];
 				*pixel = rgb565_colorbar_value[color_idx];
 				i += 2;
 			}
@@ -127,7 +127,7 @@ static int video_sw_generator_enqueue(struct device *dev,
 				      enum video_endpoint_id ep,
 				      struct video_buffer *vbuf)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	if (ep != VIDEO_EP_OUT) {
 		return -EINVAL;
@@ -143,7 +143,7 @@ static int video_sw_generator_dequeue(struct device *dev,
 				      struct video_buffer **vbuf,
 				      k_timeout_t timeout)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	if (ep != VIDEO_EP_OUT) {
 		return -EINVAL;
@@ -161,7 +161,7 @@ static int video_sw_generator_flush(struct device *dev,
 				    enum video_endpoint_id ep,
 				    bool cancel)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 	struct video_buffer *vbuf;
 
 	if (!cancel) {
@@ -210,7 +210,7 @@ static int video_sw_generator_set_signal(struct device *dev,
 					 enum video_endpoint_id ep,
 					 struct k_poll_signal *signal)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	if (data->signal && signal != NULL) {
 		return -EALREADY;
@@ -226,7 +226,7 @@ static inline int video_sw_generator_set_ctrl(struct device *dev,
 					      unsigned int cid,
 					      void *value)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	switch (cid) {
 	case VIDEO_CID_VFLIP:
@@ -263,7 +263,7 @@ static struct video_sw_generator_data video_sw_generator_data_0 = {
 
 static int video_sw_generator_init(struct device *dev)
 {
-	struct video_sw_generator_data *data = dev->driver_data;
+	struct video_sw_generator_data *data = dev->data;
 
 	data->dev = dev;
 	k_fifo_init(&data->fifo_in);

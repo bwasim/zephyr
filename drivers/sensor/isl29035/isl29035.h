@@ -112,7 +112,7 @@
 
 struct isl29035_driver_data {
 	struct device *i2c;
-	u16_t data_sample;
+	uint16_t data_sample;
 
 #if CONFIG_ISL29035_TRIGGER
 	struct device *gpio;
@@ -122,7 +122,7 @@ struct isl29035_driver_data {
 	sensor_trigger_handler_t th_handler;
 
 #if defined(CONFIG_ISL29035_TRIGGER_OWN_THREAD)
-	K_THREAD_STACK_MEMBER(thread_stack, CONFIG_ISL29035_THREAD_STACK_SIZE);
+	K_KERNEL_STACK_MEMBER(thread_stack, CONFIG_ISL29035_THREAD_STACK_SIZE);
 	struct k_thread thread;
 	struct k_sem gpio_sem;
 #elif defined(CONFIG_ISL29035_TRIGGER_GLOBAL_THREAD)

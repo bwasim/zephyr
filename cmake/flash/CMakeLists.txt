@@ -93,47 +93,8 @@ get_property(RUNNERS GLOBAL PROPERTY ZEPHYR_RUNNERS)
 #
 # Everything is marked with FORCE so that re-running CMake updates the
 # configuration if the board files change.
-#
-# TODO: drop the hack in sign.py that uses cached_runner_config to
-# guess the .bin and .hex files, then delete the cache variables.
 if(RUNNERS)
   create_runners_yaml(${RUNNERS})
-
-  set(ZEPHYR_RUNNERS ${RUNNERS} CACHE INTERNAL "Available runners")
-
-  # Runner configuration. This is provided to all runners, and is
-  # distinct from the free-form arguments provided by e.g.
-  # board_runner_args().
-  #
-  # Always applicable:
-  set(ZEPHYR_RUNNER_CONFIG_BOARD_DIR "${BOARD_DIR}"
-    CACHE STRING "Board definition directory" FORCE)
-  set(ZEPHYR_RUNNER_CONFIG_KERNEL_ELF "${PROJECT_BINARY_DIR}/${KERNEL_ELF_NAME}"
-    CACHE STRING "Path to kernel image in ELF format" FORCE)
-  get_property(HEX_FILES_TO_MERGE GLOBAL PROPERTY HEX_FILES_TO_MERGE)
-  if(HEX_FILES_TO_MERGE)
-    set(ZEPHYR_RUNNER_CONFIG_KERNEL_HEX "${PROJECT_BINARY_DIR}/${MERGED_HEX_NAME}"
-      CACHE STRING "Path to merged image in Intel Hex format" FORCE)
-  else()
-    set(ZEPHYR_RUNNER_CONFIG_KERNEL_HEX "${PROJECT_BINARY_DIR}/${KERNEL_HEX_NAME}"
-      CACHE STRING "Path to kernel image in Intel Hex format" FORCE)
-  endif()
-  set(ZEPHYR_RUNNER_CONFIG_KERNEL_BIN "${PROJECT_BINARY_DIR}/${KERNEL_BIN_NAME}"
-    CACHE STRING "Path to kernel image as raw binary" FORCE)
-  # Not always applicable, but so often needed that they're provided
-  # by default: (TODO: clean this up)
-  if(DEFINED CMAKE_GDB)
-    set(ZEPHYR_RUNNER_CONFIG_GDB "${CMAKE_GDB}"
-      CACHE STRING "Path to GDB binary, if applicable" FORCE)
-  endif()
-  if(DEFINED OPENOCD)
-    set(ZEPHYR_RUNNER_CONFIG_OPENOCD "${OPENOCD}"
-      CACHE STRING "Path to openocd binary, if applicable" FORCE)
-  endif()
-  if(DEFINED OPENOCD_DEFAULT_PATH)
-    set(ZEPHYR_RUNNER_CONFIG_OPENOCD_SEARCH "${OPENOCD_DEFAULT_PATH}"
-      CACHE STRING "Path to add to openocd search path, if applicable" FORCE)
-  endif()
 
   # Runner-specific command line arguments obtained from the board's
   # build scripts, the application's scripts, etc.
@@ -144,14 +105,6 @@ if(RUNNERS)
     set(ZEPHYR_RUNNER_ARGS_${runner_id} ${runner_args} CACHE STRING
       "Runner-specific arguments for ${runner}" FORCE)
   endforeach()
-endif()
-if(BOARD_FLASH_RUNNER)
-  set(ZEPHYR_BOARD_FLASH_RUNNER ${BOARD_FLASH_RUNNER} CACHE STRING
-    "Default runner for flashing binaries" FORCE)
-endif()
-if(BOARD_DEBUG_RUNNER)
-  set(ZEPHYR_BOARD_DEBUG_RUNNER ${BOARD_DEBUG_RUNNER} CACHE STRING
-    "Default runner for debugging" FORCE)
 endif()
 
 if(DEFINED ENV{WEST_DIR} AND NOT WEST_DIR)
@@ -179,8 +132,9 @@ foreach(target flash debug debugserver attach)
   elseif(target STREQUAL attach)
     set(comment "Debugging ${BOARD}")
   endif()
+  string(TOUPPER ${target} TARGET_UPPER)
 
-  list(APPEND FLASH_DEPS ${logical_target_for_zephyr_elf})
+  list(APPEND RUNNERS_DEPS ${logical_target_for_zephyr_elf})
 
   # Enable verbose output, if requested.
   if(CMAKE_VERBOSE_MAKEFILE)
@@ -198,7 +152,8 @@ foreach(target flash debug debugserver attach)
       ${RUNNER_VERBOSE}
       ${target}
       --skip-rebuild
-      DEPENDS ${FLASH_DEPS}
+      DEPENDS ${RUNNERS_DEPS}
+              $<TARGET_PROPERTY:zephyr_property_target,${TARGET_UPPER}_DEPENDENCIES>
       WORKING_DIRECTORY ${APPLICATION_BINARY_DIR}
       )
 
@@ -207,6 +162,16 @@ foreach(target flash debug debugserver attach)
       ${cmd}
       COMMENT
       ${comment}
+      USES_TERMINAL
+      )
+
+    # This is an artificial target to allow west to ensure all dependencies of
+    # target is build before carrying out the actual command.
+    # This allows `west` to run just the dependencies before flashing.
+    add_custom_target(west_${target}_depends
+      COMMAND ${CMAKE_COMMAND} -E echo ""
+      DEPENDS ${RUNNERS_DEPS}
+              $<TARGET_PROPERTY:zephyr_property_target,${TARGET_UPPER}_DEPENDENCIES>
       USES_TERMINAL
       )
   else()

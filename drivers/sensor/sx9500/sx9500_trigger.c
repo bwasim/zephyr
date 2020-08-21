@@ -20,7 +20,7 @@
 LOG_MODULE_DECLARE(SX9500, CONFIG_SENSOR_LOG_LEVEL);
 
 #ifdef CONFIG_SX9500_TRIGGER_OWN_THREAD
-static K_THREAD_STACK_DEFINE(sx9500_thread_stack, CONFIG_SX9500_THREAD_STACK_SIZE);
+static K_KERNEL_STACK_DEFINE(sx9500_thread_stack, CONFIG_SX9500_THREAD_STACK_SIZE);
 static struct k_thread sx9500_thread;
 #endif
 
@@ -28,7 +28,7 @@ int sx9500_trigger_set(struct device *dev,
 		       const struct sensor_trigger *trig,
 		       sensor_trigger_handler_t handler)
 {
-	struct sx9500_data *data = dev->driver_data;
+	struct sx9500_data *data = dev->data;
 
 	switch (trig->type) {
 	case SENSOR_TRIG_DATA_READY:
@@ -65,7 +65,7 @@ int sx9500_trigger_set(struct device *dev,
 #ifdef CONFIG_SX9500_TRIGGER_OWN_THREAD
 
 static void sx9500_gpio_cb(struct device *port,
-			   struct gpio_callback *cb, u32_t pins)
+			   struct gpio_callback *cb, uint32_t pins)
 {
 	struct sx9500_data *data =
 		CONTAINER_OF(cb, struct sx9500_data, gpio_cb);
@@ -78,8 +78,8 @@ static void sx9500_gpio_cb(struct device *port,
 static void sx9500_thread_main(int arg1, int unused)
 {
 	struct device *dev = INT_TO_POINTER(arg1);
-	struct sx9500_data *data = dev->driver_data;
-	u8_t reg_val;
+	struct sx9500_data *data = dev->data;
+	uint8_t reg_val;
 
 	ARG_UNUSED(unused);
 
@@ -105,7 +105,7 @@ static void sx9500_thread_main(int arg1, int unused)
 #else /* CONFIG_SX9500_TRIGGER_GLOBAL_THREAD */
 
 static void sx9500_gpio_cb(struct device *port,
-			   struct gpio_callback *cb, u32_t pins)
+			   struct gpio_callback *cb, uint32_t pins)
 {
 	struct sx9500_data *data =
 		CONTAINER_OF(cb, struct sx9500_data, gpio_cb);
@@ -118,8 +118,8 @@ static void sx9500_gpio_cb(struct device *port,
 static void sx9500_gpio_thread_cb(void *arg)
 {
 	struct device *dev = arg;
-	struct sx9500_data *data = dev->driver_data;
-	u8_t reg_val;
+	struct sx9500_data *data = dev->data;
+	uint8_t reg_val;
 
 	if (i2c_reg_read_byte(data->i2c_master, data->i2c_slave_addr,
 			      SX9500_REG_IRQ_SRC, &reg_val) < 0) {
@@ -149,7 +149,7 @@ static void sx9500_work_cb(struct k_work *work)
 
 int sx9500_setup_interrupt(struct device *dev)
 {
-	struct sx9500_data *data = dev->driver_data;
+	struct sx9500_data *data = dev->data;
 	struct device *gpio;
 
 #ifdef CONFIG_SX9500_TRIGGER_OWN_THREAD

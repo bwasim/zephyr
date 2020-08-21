@@ -24,7 +24,7 @@ LOG_MODULE_REGISTER(IIS3DHHC, CONFIG_SENSOR_LOG_LEVEL);
 static int iis3dhhc_sample_fetch(struct device *dev,
 				 enum sensor_channel chan)
 {
-	struct iis3dhhc_data *data = dev->driver_data;
+	struct iis3dhhc_data *data = dev->data;
 	union axis3bit16_t raw_accel;
 
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL);
@@ -38,9 +38,9 @@ static int iis3dhhc_sample_fetch(struct device *dev,
 }
 
 static inline void iis3dhhc_convert(struct sensor_value *val,
-					s16_t raw_val)
+					int16_t raw_val)
 {
-	s64_t micro_ms2;
+	int64_t micro_ms2;
 
 	/* Convert to m/s^2 */
 	micro_ms2 = ((iis3dhhc_from_lsb_to_mg(raw_val) * SENSOR_G) / 1000LL);
@@ -53,8 +53,8 @@ static inline void iis3dhhc_channel_get_acc(struct device *dev,
 					     struct sensor_value *val)
 {
 	int i;
-	u8_t ofs_start, ofs_stop;
-	struct iis3dhhc_data *iis3dhhc = dev->driver_data;
+	uint8_t ofs_start, ofs_stop;
+	struct iis3dhhc_data *iis3dhhc = dev->data;
 	struct sensor_value *pval = val;
 
 	switch (chan) {
@@ -99,7 +99,7 @@ static int iis3dhhc_channel_get(struct device *dev,
 static int iis3dhhc_odr_set(struct device *dev,
 			   const struct sensor_value *val)
 {
-	struct iis3dhhc_data *data = dev->driver_data;
+	struct iis3dhhc_data *data = dev->data;
 	iis3dhhc_norm_mod_en_t en;
 
 	switch (val->val1) {
@@ -152,8 +152,8 @@ static const struct sensor_driver_api iis3dhhc_api_funcs = {
 
 static int iis3dhhc_init_chip(struct device *dev)
 {
-	struct iis3dhhc_data *data = dev->driver_data;
-	u8_t chip_id, rst;
+	struct iis3dhhc_data *data = dev->data;
+	uint8_t chip_id, rst;
 
 	if (iis3dhhc_device_id_get(data->ctx, &chip_id) < 0) {
 		LOG_DBG("Failed reading chip id");
@@ -191,8 +191,8 @@ static int iis3dhhc_init_chip(struct device *dev)
 
 static int iis3dhhc_init(struct device *dev)
 {
-	const struct iis3dhhc_config * const config = dev->config_info;
-	struct iis3dhhc_data *data = dev->driver_data;
+	const struct iis3dhhc_config * const config = dev->config;
+	struct iis3dhhc_data *data = dev->data;
 
 	data->bus = device_get_binding(config->master_dev_name);
 	if (!data->bus) {

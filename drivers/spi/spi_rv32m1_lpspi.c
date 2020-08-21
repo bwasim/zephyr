@@ -27,7 +27,7 @@ struct spi_mcux_config {
 	char *clock_name;
 	clock_control_subsys_t clock_subsys;
 	clock_ip_name_t clock_ip_name;
-	u32_t clock_ip_src;
+	uint32_t clock_ip_src;
 	void (*irq_config_func)(struct device *dev);
 };
 
@@ -39,8 +39,8 @@ struct spi_mcux_data {
 
 static void spi_mcux_transfer_next_packet(struct device *dev)
 {
-	const struct spi_mcux_config *config = dev->config_info;
-	struct spi_mcux_data *data = dev->driver_data;
+	const struct spi_mcux_config *config = dev->config;
+	struct spi_mcux_data *data = dev->data;
 	LPSPI_Type *base = config->base;
 	struct spi_context *ctx = &data->ctx;
 	lpspi_transfer_t transfer;
@@ -63,12 +63,12 @@ static void spi_mcux_transfer_next_packet(struct device *dev)
 		transfer.dataSize = ctx->rx_len;
 	} else if (ctx->rx_len == 0) {
 		/* tx only, nothing to rx */
-		transfer.txData = (u8_t *) ctx->tx_buf;
+		transfer.txData = (uint8_t *) ctx->tx_buf;
 		transfer.rxData = NULL;
 		transfer.dataSize = ctx->tx_len;
 	} else if (ctx->tx_len == ctx->rx_len) {
 		/* rx and tx are the same length */
-		transfer.txData = (u8_t *) ctx->tx_buf;
+		transfer.txData = (uint8_t *) ctx->tx_buf;
 		transfer.rxData = ctx->rx_buf;
 		transfer.dataSize = ctx->tx_len;
 	} else if (ctx->tx_len > ctx->rx_len) {
@@ -76,7 +76,7 @@ static void spi_mcux_transfer_next_packet(struct device *dev)
 		 * rx into a longer intermediate buffer. Leave chip select
 		 * active between transfers.
 		 */
-		transfer.txData = (u8_t *) ctx->tx_buf;
+		transfer.txData = (uint8_t *) ctx->tx_buf;
 		transfer.rxData = ctx->rx_buf;
 		transfer.dataSize = ctx->rx_len;
 		transfer.configFlags |= kLPSPI_MasterPcsContinuous;
@@ -85,7 +85,7 @@ static void spi_mcux_transfer_next_packet(struct device *dev)
 		 * tx from a longer intermediate buffer. Leave chip select
 		 * active between transfers.
 		 */
-		transfer.txData = (u8_t *) ctx->tx_buf;
+		transfer.txData = (uint8_t *) ctx->tx_buf;
 		transfer.rxData = ctx->rx_buf;
 		transfer.dataSize = ctx->tx_len;
 		transfer.configFlags |= kLPSPI_MasterPcsContinuous;
@@ -106,8 +106,8 @@ static void spi_mcux_transfer_next_packet(struct device *dev)
 static void spi_mcux_isr(void *arg)
 {
 	struct device *dev = (struct device *)arg;
-	const struct spi_mcux_config *config = dev->config_info;
-	struct spi_mcux_data *data = dev->driver_data;
+	const struct spi_mcux_config *config = dev->config;
+	struct spi_mcux_data *data = dev->data;
 	LPSPI_Type *base = config->base;
 
 	LPSPI_MasterTransferHandleIRQ(base, &data->handle);
@@ -117,7 +117,7 @@ static void spi_mcux_master_transfer_callback(LPSPI_Type *base,
 		lpspi_master_handle_t *handle, status_t status, void *userData)
 {
 	struct device *dev = userData;
-	struct spi_mcux_data *data = dev->driver_data;
+	struct spi_mcux_data *data = dev->data;
 
 	spi_context_update_tx(&data->ctx, 1, data->transfer_len);
 	spi_context_update_rx(&data->ctx, 1, data->transfer_len);
@@ -128,13 +128,13 @@ static void spi_mcux_master_transfer_callback(LPSPI_Type *base,
 static int spi_mcux_configure(struct device *dev,
 			      const struct spi_config *spi_cfg)
 {
-	const struct spi_mcux_config *config = dev->config_info;
-	struct spi_mcux_data *data = dev->driver_data;
+	const struct spi_mcux_config *config = dev->config;
+	struct spi_mcux_data *data = dev->data;
 	LPSPI_Type *base = config->base;
 	lpspi_master_config_t master_config;
 	struct device *clock_dev;
-	u32_t clock_freq;
-	u32_t word_size;
+	uint32_t clock_freq;
+	uint32_t word_size;
 
 	if (spi_context_configured(&data->ctx, spi_cfg)) {
 		/* This configuration is already in use */
@@ -191,6 +191,8 @@ static int spi_mcux_configure(struct device *dev,
 	LPSPI_MasterTransferCreateHandle(base, &data->handle,
 					spi_mcux_master_transfer_callback, dev);
 
+	LPSPI_SetDummyData(base, 0);
+
 	data->ctx.config = spi_cfg;
 	spi_context_cs_configure(&data->ctx);
 
@@ -204,7 +206,7 @@ static int transceive(struct device *dev,
 		      bool asynchronous,
 		      struct k_poll_signal *signal)
 {
-	struct spi_mcux_data *data = dev->driver_data;
+	struct spi_mcux_data *data = dev->data;
 	int ret;
 
 	spi_context_lock(&data->ctx, asynchronous, signal);
@@ -249,7 +251,7 @@ static int spi_mcux_transceive_async(struct device *dev,
 static int spi_mcux_release(struct device *dev,
 		      const struct spi_config *spi_cfg)
 {
-	struct spi_mcux_data *data = dev->driver_data;
+	struct spi_mcux_data *data = dev->data;
 
 	spi_context_unlock_unconditionally(&data->ctx);
 
@@ -258,8 +260,8 @@ static int spi_mcux_release(struct device *dev,
 
 static int spi_mcux_init(struct device *dev)
 {
-	const struct spi_mcux_config *config = dev->config_info;
-	struct spi_mcux_data *data = dev->driver_data;
+	const struct spi_mcux_config *config = dev->config;
+	struct spi_mcux_data *data = dev->data;
 
 	CLOCK_SetIpSrc(config->clock_ip_name, config->clock_ip_src);
 

@@ -42,12 +42,22 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include "fsl_clock.h"
 #include <drivers/clock_control.h>
 #endif
+#include <devicetree.h>
 
 #include "eth.h"
 
 #define FREESCALE_OUI_B0 0x00
 #define FREESCALE_OUI_B1 0x04
 #define FREESCALE_OUI_B2 0x9f
+
+#define ETH_MCUX_FIXED_LINK_NODE \
+	DT_CHILD(DT_ALIAS(eth), fixed_link)
+#define ETH_MCUX_FIXED_LINK \
+	DT_NODE_EXISTS(ETH_MCUX_FIXED_LINK_NODE)
+#define ETH_MCUX_FIXED_LINK_SPEED \
+	DT_PROP(ETH_MCUX_FIXED_LINK_NODE, speed)
+#define ETH_MCUX_FIXED_LINK_FULL_DUPLEX \
+	DT_PROP(ETH_MCUX_FIXED_LINK_NODE, full_duplex)
 
 enum eth_mcux_phy_state {
 	eth_mcux_phy_state_initial,
@@ -118,11 +128,11 @@ struct eth_context {
 	enum eth_mcux_phy_state phy_state;
 	bool enabled;
 	bool link_up;
-	u32_t phy_addr;
+	uint32_t phy_addr;
 	phy_duplex_t phy_duplex;
 	phy_speed_t phy_speed;
-	u8_t mac_addr[6];
-	void (*generate_mac)(u8_t *);
+	uint8_t mac_addr[6];
+	void (*generate_mac)(uint8_t *);
 	struct k_work phy_work;
 	struct k_delayed_work delayed_phy_work;
 	/* TODO: FIXME. This Ethernet frame sized buffer is used for
@@ -140,7 +150,7 @@ struct eth_context {
 	 * Note that we do not copy FCS into this buffer thus the
 	 * size is 1514 bytes.
 	 */
-	u8_t frame_buf[NET_ETH_MAX_FRAME_SIZE]; /* Max MTU + ethernet header */
+	uint8_t frame_buf[NET_ETH_MAX_FRAME_SIZE]; /* Max MTU + ethernet header */
 };
 
 #ifdef CONFIG_HAS_MCUX_CACHE
@@ -177,20 +187,20 @@ static int ts_tx_rd, ts_tx_wr;
 	ROUND_UP(ENET_FRAME_MAX_FRAMELEN, ENET_BUFF_ALIGNMENT)
 #endif /* CONFIG_NET_VLAN */
 
-static u8_t __aligned(ENET_BUFF_ALIGNMENT)
+static uint8_t __aligned(ENET_BUFF_ALIGNMENT)
 rx_buffer[CONFIG_ETH_MCUX_RX_BUFFERS][ETH_MCUX_BUFFER_SIZE];
 
-static u8_t __aligned(ENET_BUFF_ALIGNMENT)
+static uint8_t __aligned(ENET_BUFF_ALIGNMENT)
 tx_buffer[CONFIG_ETH_MCUX_TX_BUFFERS][ETH_MCUX_BUFFER_SIZE];
 
 #ifdef CONFIG_NET_POWER_MANAGEMENT
 static void eth_mcux_phy_enter_reset(struct eth_context *context);
 void eth_mcux_phy_stop(struct eth_context *context);
 
-static int eth_mcux_device_pm_control(struct device *dev, u32_t command,
+static int eth_mcux_device_pm_control(struct device *dev, uint32_t command,
 				      void *context, device_pm_cb cb, void *arg)
 {
-	struct eth_context *eth_ctx = (struct eth_context *)dev->driver_data;
+	struct eth_context *eth_ctx = (struct eth_context *)dev->data;
 	int ret = 0;
 
 	if (!eth_ctx->clock_dev) {
@@ -201,7 +211,7 @@ static int eth_mcux_device_pm_control(struct device *dev, u32_t command,
 	}
 
 	if (command == DEVICE_PM_SET_POWER_STATE) {
-		if (*(u32_t *)context == DEVICE_PM_SUSPEND_STATE) {
+		if (*(uint32_t *)context == DEVICE_PM_SUSPEND_STATE) {
 			LOG_DBG("Suspending");
 
 			ret = net_if_suspend(eth_ctx->iface);
@@ -216,7 +226,7 @@ static int eth_mcux_device_pm_control(struct device *dev, u32_t command,
 			ENET_Deinit(eth_ctx->base);
 			clock_control_off(eth_ctx->clock_dev,
 				(clock_control_subsys_t)eth_ctx->clock);
-		} else if (*(u32_t *)context == DEVICE_PM_ACTIVE_STATE) {
+		} else if (*(uint32_t *)context == DEVICE_PM_ACTIVE_STATE) {
 			LOG_DBG("Resuming");
 
 			clock_control_on(eth_ctx->clock_dev,
@@ -242,7 +252,23 @@ out:
 #define ETH_MCUX_PM_FUNC device_pm_control_nop
 #endif /* CONFIG_NET_POWER_MANAGEMENT */
 
-static void eth_mcux_decode_duplex_and_speed(u32_t status,
+#if ETH_MCUX_FIXED_LINK
+static void eth_mcux_get_phy_params(phy_duplex_t *p_phy_duplex,
+				    phy_speed_t *p_phy_speed)
+{
+	*p_phy_duplex = kPHY_HalfDuplex;
+#if ETH_MCUX_FIXED_LINK_FULL_DUPLEX
+	*p_phy_duplex = kPHY_FullDuplex;
+#endif
+
+	*p_phy_speed = kPHY_Speed10M;
+#if ETH_MCUX_FIXED_LINK_SPEED == 100
+	*p_phy_speed = kPHY_Speed100M;
+#endif
+}
+#else
+
+static void eth_mcux_decode_duplex_and_speed(uint32_t status,
 					     phy_duplex_t *p_phy_duplex,
 					     phy_speed_t *p_phy_speed)
 {
@@ -265,8 +291,9 @@ static void eth_mcux_decode_duplex_and_speed(u32_t status,
 		break;
 	}
 }
+#endif /* ETH_MCUX_FIXED_LINK */
 
-static inline struct net_if *get_iface(struct eth_context *ctx, u16_t vlan_tag)
+static inline struct net_if *get_iface(struct eth_context *ctx, uint16_t vlan_tag)
 {
 #if defined(CONFIG_NET_VLAN)
 	struct net_if *iface;
@@ -287,11 +314,16 @@ static inline struct net_if *get_iface(struct eth_context *ctx, u16_t vlan_tag)
 static void eth_mcux_phy_enter_reset(struct eth_context *context)
 {
 	/* Reset the PHY. */
+#ifndef CONFIG_ETH_MCUX_NO_PHY_SMI
 	ENET_StartSMIWrite(context->base, context->phy_addr,
 			   PHY_BASICCONTROL_REG,
 			   kENET_MiiWriteValidFrame,
 			   PHY_BCTL_RESET_MASK);
+#endif
 	context->phy_state = eth_mcux_phy_state_reset;
+#ifdef CONFIG_ETH_MCUX_NO_PHY_SMI
+	k_work_submit(&context->phy_work);
+#endif
 }
 
 static void eth_mcux_phy_start(struct eth_context *context)
@@ -307,10 +339,19 @@ static void eth_mcux_phy_start(struct eth_context *context)
 	case eth_mcux_phy_state_initial:
 		ENET_ActiveRead(context->base);
 		/* Reset the PHY. */
+#ifndef CONFIG_ETH_MCUX_NO_PHY_SMI
 		ENET_StartSMIWrite(context->base, context->phy_addr,
 				   PHY_BASICCONTROL_REG,
 				   kENET_MiiWriteValidFrame,
 				   PHY_BCTL_RESET_MASK);
+#else
+		/*
+		 * With no SMI communication one needs to wait for
+		 * iface being up by the network core.
+		 */
+		k_work_submit(&context->phy_work);
+		break;
+#endif
 #ifdef CONFIG_SOC_SERIES_IMX_RT
 		context->phy_state = eth_mcux_phy_state_initial;
 #else
@@ -364,11 +405,13 @@ void eth_mcux_phy_stop(struct eth_context *context)
 
 static void eth_mcux_phy_event(struct eth_context *context)
 {
-	u32_t status;
+#if !(defined(CONFIG_ETH_MCUX_NO_PHY_SMI) && ETH_MCUX_FIXED_LINK)
+	uint32_t status;
+#endif
 	bool link_up;
 #ifdef CONFIG_SOC_SERIES_IMX_RT
 	status_t res;
-	u32_t ctrl2;
+	uint32_t ctrl2;
 #endif
 	phy_duplex_t phy_duplex = kPHY_FullDuplex;
 	phy_speed_t phy_speed = kPHY_Speed100M;
@@ -396,6 +439,18 @@ static void eth_mcux_phy_event(struct eth_context *context)
 		}
 		context->phy_state = eth_mcux_phy_state_reset;
 #endif
+#ifdef CONFIG_ETH_MCUX_NO_PHY_SMI
+		/*
+		 * When the iface is available proceed with the eth link setup,
+		 * otherwise reschedule the eth_mcux_phy_event and check after
+		 * 1ms
+		 */
+		if (context->iface) {
+		       context->phy_state = eth_mcux_phy_state_reset;
+		}
+
+		k_delayed_work_submit(&context->delayed_phy_work, K_MSEC(1));
+#endif
 		break;
 	case eth_mcux_phy_state_closing:
 		if (context->enabled) {
@@ -407,6 +462,7 @@ static void eth_mcux_phy_event(struct eth_context *context)
 		break;
 	case eth_mcux_phy_state_reset:
 		/* Setup PHY autonegotiation. */
+#ifndef CONFIG_ETH_MCUX_NO_PHY_SMI
 		ENET_StartSMIWrite(context->base, context->phy_addr,
 				   PHY_AUTONEG_ADVERTISE_REG,
 				   kENET_MiiWriteValidFrame,
@@ -414,34 +470,54 @@ static void eth_mcux_phy_event(struct eth_context *context)
 				    PHY_100BASETX_HALFDUPLEX_MASK |
 				    PHY_10BASETX_FULLDUPLEX_MASK |
 				    PHY_10BASETX_HALFDUPLEX_MASK | 0x1U));
+#endif
 		context->phy_state = eth_mcux_phy_state_autoneg;
+#ifdef CONFIG_ETH_MCUX_NO_PHY_SMI
+		k_work_submit(&context->phy_work);
+#endif
 		break;
 	case eth_mcux_phy_state_autoneg:
+#ifndef CONFIG_ETH_MCUX_NO_PHY_SMI
 		/* Setup PHY autonegotiation. */
 		ENET_StartSMIWrite(context->base, context->phy_addr,
 				   PHY_BASICCONTROL_REG,
 				   kENET_MiiWriteValidFrame,
 				   (PHY_BCTL_AUTONEG_MASK |
 				    PHY_BCTL_RESTART_AUTONEG_MASK));
+#endif
 		context->phy_state = eth_mcux_phy_state_restart;
+#ifdef CONFIG_ETH_MCUX_NO_PHY_SMI
+		k_work_submit(&context->phy_work);
+#endif
 		break;
 	case eth_mcux_phy_state_wait:
 	case eth_mcux_phy_state_restart:
 		/* Start reading the PHY basic status. */
+#ifndef CONFIG_ETH_MCUX_NO_PHY_SMI
 		ENET_StartSMIRead(context->base, context->phy_addr,
 				  PHY_BASICSTATUS_REG,
 				  kENET_MiiReadValidFrame);
+#endif
 		context->phy_state = eth_mcux_phy_state_read_status;
+#ifdef CONFIG_ETH_MCUX_NO_PHY_SMI
+		k_work_submit(&context->phy_work);
+#endif
 		break;
 	case eth_mcux_phy_state_read_status:
 		/* PHY Basic status is available. */
+#if defined(CONFIG_ETH_MCUX_NO_PHY_SMI) && ETH_MCUX_FIXED_LINK
+		link_up = true;
+#else
 		status = ENET_ReadSMIData(context->base);
 		link_up =  status & PHY_BSTATUS_LINKSTATUS_MASK;
+#endif
 		if (link_up && !context->link_up) {
 			/* Start reading the PHY control register. */
+#ifndef CONFIG_ETH_MCUX_NO_PHY_SMI
 			ENET_StartSMIRead(context->base, context->phy_addr,
 					  PHY_CONTROL1_REG,
 					  kENET_MiiReadValidFrame);
+#endif
 			context->link_up = link_up;
 			context->phy_state = eth_mcux_phy_state_read_duplex;
 
@@ -450,6 +526,9 @@ static void eth_mcux_phy_event(struct eth_context *context)
 				net_eth_carrier_on(context->iface);
 				k_msleep(USEC_PER_MSEC);
 			}
+#ifdef CONFIG_ETH_MCUX_NO_PHY_SMI
+			k_work_submit(&context->phy_work);
+#endif
 		} else if (!link_up && context->link_up) {
 			LOG_INF("%s link down", eth_name(context->base));
 			context->link_up = link_up;
@@ -466,10 +545,15 @@ static void eth_mcux_phy_event(struct eth_context *context)
 		break;
 	case eth_mcux_phy_state_read_duplex:
 		/* PHY control register is available. */
+#if defined(CONFIG_ETH_MCUX_NO_PHY_SMI) && ETH_MCUX_FIXED_LINK
+		eth_mcux_get_phy_params(&phy_duplex, &phy_speed);
+		LOG_INF("%s - Fixed Link", eth_name(context->base));
+#else
 		status = ENET_ReadSMIData(context->base);
 		eth_mcux_decode_duplex_and_speed(status,
 						 &phy_duplex,
 						 &phy_speed);
+#endif
 		if (phy_speed != context->phy_speed ||
 		    phy_duplex != context->phy_duplex) {
 			context->phy_speed = phy_speed;
@@ -510,7 +594,7 @@ static void eth_mcux_phy_setup(struct eth_context *context)
 {
 #ifdef CONFIG_SOC_SERIES_IMX_RT
 	status_t res;
-	u32_t oms_override;
+	uint32_t oms_override;
 
 	/* Disable MII interrupts to prevent triggering PHY events. */
 	ENET_DisableInterrupts(context->base, ENET_EIR_MII_MASK);
@@ -628,8 +712,8 @@ static bool eth_get_ptp_data(struct net_if *iface, struct net_pkt *pkt,
 
 static int eth_tx(struct device *dev, struct net_pkt *pkt)
 {
-	struct eth_context *context = dev->driver_data;
-	u16_t total_len = net_pkt_get_len(pkt);
+	struct eth_context *context = dev->data;
+	uint16_t total_len = net_pkt_get_len(pkt);
 	status_t status;
 	unsigned int imask;
 #if defined(CONFIG_PTP_CLOCK_MCUX)
@@ -690,9 +774,9 @@ static int eth_tx(struct device *dev, struct net_pkt *pkt)
 
 static void eth_rx(struct device *iface)
 {
-	struct eth_context *context = iface->driver_data;
-	u16_t vlan_tag = NET_VLAN_TAG_UNSPEC;
-	u32_t frame_length = 0U;
+	struct eth_context *context = iface->data;
+	uint16_t vlan_tag = NET_VLAN_TAG_UNSPEC;
+	uint32_t frame_length = 0U;
 	struct net_pkt *pkt;
 	status_t status;
 	unsigned int imask;
@@ -846,7 +930,7 @@ static void eth_callback(ENET_Type *base, enet_handle_t *handle,
 			 enet_event_t event, void *param)
 {
 	struct device *iface = param;
-	struct eth_context *context = iface->driver_data;
+	struct eth_context *context = iface->data;
 
 	switch (event) {
 	case kENET_RxEvent:
@@ -880,7 +964,7 @@ static void eth_callback(ENET_Type *base, enet_handle_t *handle,
 
 #if DT_INST_PROP(0, zephyr_random_mac_address) || \
     DT_INST_PROP(1, zephyr_random_mac_address)
-static void generate_random_mac(u8_t *mac_addr)
+static void generate_random_mac(uint8_t *mac_addr)
 {
 	gen_random_mac(mac_addr, FREESCALE_OUI_B0,
 		       FREESCALE_OUI_B1, FREESCALE_OUI_B2);
@@ -890,14 +974,14 @@ static void generate_random_mac(u8_t *mac_addr)
 #if !DT_INST_NODE_HAS_PROP(0, local_mac_address) || \
 	DT_NODE_HAS_STATUS(DT_DRV_INST(1), okay) && \
 	!DT_INST_NODE_HAS_PROP(1, local_mac_address)
-static void generate_eth0_unique_mac(u8_t *mac_addr)
+static void generate_eth0_unique_mac(uint8_t *mac_addr)
 {
 	/* Trivially "hash" up to 128 bits of MCU unique identifier */
 #ifdef CONFIG_SOC_SERIES_IMX_RT
-	u32_t id = OCOTP->CFG1 ^ OCOTP->CFG2;
+	uint32_t id = OCOTP->CFG1 ^ OCOTP->CFG2;
 #endif
 #ifdef CONFIG_SOC_SERIES_KINETIS_K6X
-	u32_t id = SIM->UIDH ^ SIM->UIDMH ^ SIM->UIDML ^ SIM->UIDL;
+	uint32_t id = SIM->UIDH ^ SIM->UIDMH ^ SIM->UIDML ^ SIM->UIDL;
 #endif
 
 	mac_addr[0] |= 0x02; /* force LAA bit */
@@ -909,7 +993,7 @@ static void generate_eth0_unique_mac(u8_t *mac_addr)
 #endif
 
 #if DT_NODE_HAS_STATUS(DT_DRV_INST(1), okay) && !DT_INST_NODE_HAS_PROP(1, local_mac_address)
-static void generate_eth1_unique_mac(u8_t *mac_addr)
+static void generate_eth1_unique_mac(uint8_t *mac_addr)
 {
 	generate_eth0_unique_mac(mac_addr);
 	mac_addr[5]++;
@@ -918,9 +1002,9 @@ static void generate_eth1_unique_mac(u8_t *mac_addr)
 
 static void eth_mcux_init(struct device *dev)
 {
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 	enet_config_t enet_config;
-	u32_t sys_clock;
+	uint32_t sys_clock;
 	enet_buffer_config_t buffer_config = {
 		.rxBdNumber = CONFIG_ETH_MCUX_RX_BUFFERS,
 		.txBdNumber = CONFIG_ETH_MCUX_TX_BUFFERS,
@@ -932,11 +1016,11 @@ static void eth_mcux_init(struct device *dev)
 		.txBufferAlign = tx_buffer[0],
 	};
 #if defined(CONFIG_PTP_CLOCK_MCUX)
-	u8_t ptp_multicast[6] = { 0x01, 0x80, 0xC2, 0x00, 0x00, 0x0E };
+	uint8_t ptp_multicast[6] = { 0x01, 0x80, 0xC2, 0x00, 0x00, 0x0E };
 #endif
 #if defined(CONFIG_MDNS_RESPONDER) || defined(CONFIG_MDNS_RESOLVER)
 	/* standard multicast MAC address */
-	u8_t mdns_multicast[6] = { 0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB };
+	uint8_t mdns_multicast[6] = { 0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB };
 #endif
 
 	context->phy_state = eth_mcux_phy_state_initial;
@@ -946,7 +1030,9 @@ static void eth_mcux_init(struct device *dev)
 	ENET_GetDefaultConfig(&enet_config);
 	enet_config.interrupt |= kENET_RxFrameInterrupt;
 	enet_config.interrupt |= kENET_TxFrameInterrupt;
+#ifndef CONFIG_ETH_MCUX_NO_PHY_SMI
 	enet_config.interrupt |= kENET_MiiInterrupt;
+#endif
 
 	if (IS_ENABLED(CONFIG_ETH_MCUX_PROMISCUOUS_MODE)) {
 		enet_config.macSpecialConfig |= kENET_ControlPromiscuousEnable;
@@ -993,7 +1079,9 @@ static void eth_mcux_init(struct device *dev)
 	ENET_AddMulticastGroup(context->base, mdns_multicast);
 #endif
 
+#ifndef CONFIG_ETH_MCUX_NO_PHY_SMI
 	ENET_SetSMI(context->base, sys_clock, false);
+#endif
 
 	/* handle PHY setup after SMI initialization */
 	eth_mcux_phy_setup(context);
@@ -1005,7 +1093,7 @@ static void eth_mcux_init(struct device *dev)
 
 static int eth_init(struct device *dev)
 {
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 #if defined(CONFIG_PTP_CLOCK_MCUX)
 	ts_tx_rd = 0;
@@ -1050,7 +1138,7 @@ static void net_if_mcast_cb(struct net_if *iface,
 			    bool is_joined)
 {
 	struct device *dev = net_if_get_device(iface);
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 	struct net_eth_addr mac_addr;
 
 	net_eth_ipv6_mcast_to_mac_addr(addr, &mac_addr);
@@ -1066,7 +1154,7 @@ static void net_if_mcast_cb(struct net_if *iface,
 static void eth_iface_init(struct net_if *iface)
 {
 	struct device *dev = net_if_get_device(iface);
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 #if defined(CONFIG_NET_IPV6)
 	static struct net_if_mcast_monitor mon;
@@ -1111,7 +1199,7 @@ static enum ethernet_hw_caps eth_mcux_get_capabilities(struct device *dev)
 #if defined(CONFIG_PTP_CLOCK_MCUX)
 static struct device *eth_mcux_get_ptp_clock(struct device *dev)
 {
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 	return context->ptp_clock;
 }
@@ -1130,7 +1218,7 @@ static const struct ethernet_api api_funcs = {
 static void eth_mcux_ptp_isr(void *p)
 {
 	struct device *dev = p;
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 	ENET_Ptp1588TimerIRQHandler(context->base, &context->enet_handle);
 }
@@ -1140,8 +1228,8 @@ static void eth_mcux_ptp_isr(void *p)
 static void eth_mcux_dispacher_isr(void *p)
 {
 	struct device *dev = p;
-	struct eth_context *context = dev->driver_data;
-	u32_t EIR = ENET_GetInterruptStatus(context->base);
+	struct eth_context *context = dev->data;
+	uint32_t EIR = ENET_GetInterruptStatus(context->base);
 	int irq_lock_key = irq_lock();
 
 	if (EIR & (kENET_RxBufferInterrupt | kENET_RxFrameInterrupt)) {
@@ -1163,7 +1251,7 @@ static void eth_mcux_dispacher_isr(void *p)
 static void eth_mcux_rx_isr(void *p)
 {
 	struct device *dev = p;
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 	ENET_ReceiveIRQHandler(context->base, &context->enet_handle);
 }
@@ -1173,7 +1261,7 @@ static void eth_mcux_rx_isr(void *p)
 static void eth_mcux_tx_isr(void *p)
 {
 	struct device *dev = p;
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 	ENET_TransmitIRQHandler(context->base, &context->enet_handle);
 }
@@ -1183,8 +1271,8 @@ static void eth_mcux_tx_isr(void *p)
 static void eth_mcux_error_isr(void *p)
 {
 	struct device *dev = p;
-	struct eth_context *context = dev->driver_data;
-	u32_t pending = ENET_GetInterruptStatus(context->base);
+	struct eth_context *context = dev->data;
+	uint32_t pending = ENET_GetInterruptStatus(context->base);
 
 	if (pending & ENET_EIR_MII_MASK) {
 		k_work_submit(&context->phy_work);
@@ -1313,7 +1401,7 @@ static struct ptp_context ptp_mcux_0_context;
 
 static int ptp_clock_mcux_set(struct device *dev, struct net_ptp_time *tm)
 {
-	struct ptp_context *ptp_context = dev->driver_data;
+	struct ptp_context *ptp_context = dev->data;
 	struct eth_context *context = ptp_context->eth_context;
 	enet_ptp_time_t enet_time;
 
@@ -1326,7 +1414,7 @@ static int ptp_clock_mcux_set(struct device *dev, struct net_ptp_time *tm)
 
 static int ptp_clock_mcux_get(struct device *dev, struct net_ptp_time *tm)
 {
-	struct ptp_context *ptp_context = dev->driver_data;
+	struct ptp_context *ptp_context = dev->data;
 	struct eth_context *context = ptp_context->eth_context;
 	enet_ptp_time_t enet_time;
 
@@ -1339,7 +1427,7 @@ static int ptp_clock_mcux_get(struct device *dev, struct net_ptp_time *tm)
 
 static int ptp_clock_mcux_adjust(struct device *dev, int increment)
 {
-	struct ptp_context *ptp_context = dev->driver_data;
+	struct ptp_context *ptp_context = dev->data;
 	struct eth_context *context = ptp_context->eth_context;
 	int key, ret;
 
@@ -1367,10 +1455,10 @@ static int ptp_clock_mcux_adjust(struct device *dev, int increment)
 static int ptp_clock_mcux_rate_adjust(struct device *dev, float ratio)
 {
 	const int hw_inc = NSEC_PER_SEC / CONFIG_ETH_MCUX_PTP_CLOCK_SRC_HZ;
-	struct ptp_context *ptp_context = dev->driver_data;
+	struct ptp_context *ptp_context = dev->data;
 	struct eth_context *context = ptp_context->eth_context;
 	int corr;
-	s32_t mul;
+	int32_t mul;
 	float val;
 
 	/* No change needed. */
@@ -1425,8 +1513,8 @@ static const struct ptp_clock_driver_api api = {
 static int ptp_mcux_init(struct device *port)
 {
 	struct device *eth_dev = DEVICE_GET(eth_mcux_0);
-	struct eth_context *context = eth_dev->driver_data;
-	struct ptp_context *ptp_context = port->driver_data;
+	struct eth_context *context = eth_dev->data;
+	struct ptp_context *ptp_context = port->data;
 
 	context->ptp_clock = port;
 	ptp_context->eth_context = context;

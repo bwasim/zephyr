@@ -13,12 +13,12 @@
 
 struct pwr_ctrl_cfg {
 	const char *port;
-	u32_t pin;
+	uint32_t pin;
 };
 
 static int pwr_ctrl_init(struct device *dev)
 {
-	const struct pwr_ctrl_cfg *cfg = dev->config_info;
+	const struct pwr_ctrl_cfg *cfg = dev->config;
 	struct device *gpio;
 
 	gpio = device_get_binding(cfg->port);

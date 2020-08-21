@@ -29,6 +29,8 @@ LOG_MODULE_REGISTER(net_test, NET_LOG_LEVEL);
 #include <net/net_ip.h>
 #include <net/net_l2.h>
 
+#include <random/rand32.h>
+
 #define NET_LOG_ENABLED 1
 #include "net_private.h"
 
@@ -72,7 +74,7 @@ static K_SEM_DEFINE(wait_data, 0, UINT_MAX);
 
 struct eth_context {
 	struct net_if *iface;
-	u8_t mac_addr[6];
+	uint8_t mac_addr[6];
 
 	struct net_ptp_time time;
 	struct device *ptp_clock;
@@ -85,7 +87,7 @@ static struct eth_context eth_context_3;
 static void eth_iface_init(struct net_if *iface)
 {
 	struct device *dev = net_if_get_device(iface);
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 	net_if_set_link_addr(iface, context->mac_addr,
 			     sizeof(context->mac_addr),
@@ -96,7 +98,7 @@ static void eth_iface_init(struct net_if *iface)
 
 static int eth_tx(struct device *dev, struct net_pkt *pkt)
 {
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 	if (&eth_context_1 != context && &eth_context_2 != context) {
 		zassert_true(false, "Context pointers do not match\n");
@@ -122,7 +124,7 @@ static enum ethernet_hw_caps eth_capabilities(struct device *dev)
 
 static struct device *eth_get_ptp_clock(struct device *dev)
 {
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 	return context->ptp_clock;
 }
@@ -135,7 +137,7 @@ static struct ethernet_api api_funcs = {
 	.send = eth_tx,
 };
 
-static void generate_mac(u8_t *mac_addr)
+static void generate_mac(uint8_t *mac_addr)
 {
 	/* 00-00-5E-00-53-xx Documentation RFC 7042 */
 	mac_addr[0] = 0x00;
@@ -148,7 +150,7 @@ static void generate_mac(u8_t *mac_addr)
 
 static int eth_init(struct device *dev)
 {
-	struct eth_context *context = dev->driver_data;
+	struct eth_context *context = dev->data;
 
 	generate_mac(context->mac_addr);
 
@@ -167,7 +169,7 @@ ETH_NET_DEVICE_INIT(eth_test_3, "eth_test_3", eth_init, device_pm_control_nop,
 		    &eth_context_3, NULL, CONFIG_ETH_INIT_PRIORITY, &api_funcs,
 		    NET_ETH_MTU);
 
-static u64_t timestamp_to_nsec(struct net_ptp_time *ts)
+static uint64_t timestamp_to_nsec(struct net_ptp_time *ts)
 {
 	if (!ts) {
 		return 0;
@@ -182,7 +184,7 @@ struct ptp_context {
 
 static int my_ptp_clock_set(struct device *dev, struct net_ptp_time *tm)
 {
-	struct ptp_context *ptp_ctx = dev->driver_data;
+	struct ptp_context *ptp_ctx = dev->data;
 	struct eth_context *eth_ctx = ptp_ctx->eth_context;
 
 	if (&eth_context_1 != eth_ctx && &eth_context_2 != eth_ctx) {
@@ -196,7 +198,7 @@ static int my_ptp_clock_set(struct device *dev, struct net_ptp_time *tm)
 
 static int my_ptp_clock_get(struct device *dev, struct net_ptp_time *tm)
 {
-	struct ptp_context *ptp_ctx = dev->driver_data;
+	struct ptp_context *ptp_ctx = dev->data;
 	struct eth_context *eth_ctx = ptp_ctx->eth_context;
 
 	memcpy(tm, &eth_ctx->time, sizeof(struct net_ptp_time));
@@ -206,7 +208,7 @@ static int my_ptp_clock_get(struct device *dev, struct net_ptp_time *tm)
 
 static int my_ptp_clock_adjust(struct device *dev, int increment)
 {
-	struct ptp_context *ptp_ctx = dev->driver_data;
+	struct ptp_context *ptp_ctx = dev->data;
 	struct eth_context *eth_ctx = ptp_ctx->eth_context;
 
 	eth_ctx->time.nanosecond += increment;
@@ -232,8 +234,8 @@ static const struct ptp_clock_driver_api api = {
 static int ptp_test_1_init(struct device *port)
 {
 	struct device *eth_dev = DEVICE_GET(eth_test_1);
-	struct eth_context *context = eth_dev->driver_data;
-	struct ptp_context *ptp_context = port->driver_data;
+	struct eth_context *context = eth_dev->data;
+	struct ptp_context *ptp_context = port->data;
 
 	context->ptp_clock = port;
 	ptp_context->eth_context = context;
@@ -248,8 +250,8 @@ DEVICE_AND_API_INIT(ptp_clock_1, PTP_CLOCK_NAME, ptp_test_1_init,
 static int ptp_test_2_init(struct device *port)
 {
 	struct device *eth_dev = DEVICE_GET(eth_test_2);
-	struct eth_context *context = eth_dev->driver_data;
-	struct ptp_context *ptp_context = port->driver_data;
+	struct eth_context *context = eth_dev->data;
+	struct ptp_context *ptp_context = port->data;
 
 	context->ptp_clock = port;
 	ptp_context->eth_context = context;
@@ -426,7 +428,7 @@ static void test_ptp_clock_iface(int idx)
 		.nanosecond = 1,
 	};
 	struct device *clk;
-	u64_t orig, new_value;
+	uint64_t orig, new_value;
 
 	clk = net_eth_get_ptp_clock(eth_interfaces[idx]);
 

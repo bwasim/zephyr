@@ -15,6 +15,8 @@
 #include <logging/log.h>
 LOG_MODULE_DECLARE(os);
 
+void z_pcie_add_mmu_regions(void);
+
 #define PHYS_RAM_ADDR DT_REG_ADDR(DT_CHOSEN(zephyr_sram))
 #define PHYS_RAM_SIZE DT_REG_SIZE(DT_CHOSEN(zephyr_sram))
 
@@ -76,7 +78,7 @@ MMU_BOOT_REGION(&__kernel_ram_start, &__kernel_ram_size,
  */
 
 #ifdef CONFIG_X86_64
-static inline void pml4e_update_pdpt(u64_t *pml4e, struct x86_mmu_pdpt *pdpt)
+static inline void pml4e_update_pdpt(uint64_t *pml4e, struct x86_mmu_pdpt *pdpt)
 {
 	uintptr_t pdpt_addr = (uintptr_t)pdpt;
 
@@ -85,7 +87,7 @@ static inline void pml4e_update_pdpt(u64_t *pml4e, struct x86_mmu_pdpt *pdpt)
 }
 #endif /* CONFIG_X86_64 */
 
-static inline void pdpte_update_pd(u64_t *pdpte, struct x86_mmu_pd *pd)
+static inline void pdpte_update_pd(uint64_t *pdpte, struct x86_mmu_pd *pd)
 {
 	uintptr_t pd_addr = (uintptr_t)pd;
 
@@ -96,7 +98,7 @@ static inline void pdpte_update_pd(u64_t *pdpte, struct x86_mmu_pd *pd)
 		  (pd_addr & Z_X86_MMU_PDPTE_PD_MASK));
 }
 
-static inline void pde_update_pt(u64_t *pde, struct x86_mmu_pt *pt)
+static inline void pde_update_pt(uint64_t *pde, struct x86_mmu_pt *pt)
 {
 	uintptr_t pt_addr = (uintptr_t)pt;
 
@@ -106,7 +108,7 @@ static inline void pde_update_pt(u64_t *pde, struct x86_mmu_pt *pt)
 		(pt_addr & Z_X86_MMU_PDE_PT_MASK));
 }
 
-static inline void pte_update_addr(u64_t *pte, uintptr_t addr)
+static inline void pte_update_addr(uint64_t *pte, uintptr_t addr)
 {
 	*pte = ((*pte & ~Z_X86_MMU_PTE_ADDR_MASK) |
 		(addr & Z_X86_MMU_PTE_ADDR_MASK));
@@ -121,7 +123,7 @@ static inline void pte_update_addr(u64_t *pte, uintptr_t addr)
  * Not trying to capture every flag, just the most interesting stuff,
  * Present, write, XD, user, in typically encountered combinations.
  */
-static bool dump_entry_flags(const char *name, u64_t flags)
+static bool dump_entry_flags(const char *name, uint64_t flags)
 {
 	if ((flags & Z_X86_MMU_P) == 0) {
 		LOG_ERR("%s: Non-present", name);
@@ -140,7 +142,7 @@ static bool dump_entry_flags(const char *name, u64_t flags)
 
 void z_x86_dump_mmu_flags(struct x86_page_tables *ptables, uintptr_t addr)
 {
-	u64_t entry;
+	uint64_t entry;
 
 #ifdef CONFIG_X86_64
 	entry = *z_x86_get_pml4e(ptables, addr);
@@ -174,7 +176,7 @@ void z_x86_dump_mmu_flags(struct x86_page_tables *ptables, uintptr_t addr)
 	}
 }
 
-static char get_entry_code(u64_t value)
+static char get_entry_code(uint64_t value)
 {
 	char ret;
 
@@ -209,7 +211,7 @@ static char get_entry_code(u64_t value)
 	return ret;
 }
 
-static void print_entries(u64_t entries_array[], size_t count)
+static void print_entries(uint64_t entries_array[], size_t count)
 {
 	int column = 0;
 
@@ -245,7 +247,7 @@ static void z_x86_dump_pd(struct x86_mmu_pd *pd, uintptr_t base, int index)
 
 	for (int i = 0; i < Z_X86_NUM_PD_ENTRIES; i++) {
 		struct x86_mmu_pt *pt;
-		u64_t pde = pd->entry[i];
+		uint64_t pde = pd->entry[i];
 
 		if (((pde & Z_X86_MMU_P) == 0) || ((pde & Z_X86_MMU_PS) != 0)) {
 			/* Skip non-present, or 2MB directory entries, there's
@@ -268,7 +270,7 @@ static void z_x86_dump_pdpt(struct x86_mmu_pdpt *pdpt, uintptr_t base,
 
 	for (int i = 0; i < Z_X86_NUM_PDPT_ENTRIES; i++) {
 		struct x86_mmu_pd *pd;
-		u64_t pdpte = pdpt->entry[i];
+		uint64_t pdpte = pdpt->entry[i];
 
 		if ((pdpte & Z_X86_MMU_P) == 0) {
 			continue;
@@ -292,7 +294,7 @@ static void z_x86_dump_pml4(struct x86_mmu_pml4 *pml4)
 
 	for (int i = 0; i < Z_X86_NUM_PML4_ENTRIES; i++) {
 		struct x86_mmu_pdpt *pdpt;
-		u64_t pml4e = pml4->entry[i];
+		uint64_t pml4e = pml4->entry[i];
 
 		if ((pml4e & Z_X86_MMU_P) == 0) {
 			continue;
@@ -316,7 +318,7 @@ void z_x86_dump_page_tables(struct x86_page_tables *ptables)
 #endif
 
 void z_x86_mmu_get_flags(struct x86_page_tables *ptables, void *addr,
-			 u64_t *pde_flags, u64_t *pte_flags)
+			 uint64_t *pde_flags, uint64_t *pte_flags)
 {
 	*pde_flags = *z_x86_get_pde(ptables, (uintptr_t)addr) &
 		~Z_X86_MMU_PDE_PT_MASK;
@@ -358,7 +360,7 @@ static int x86_mmu_validate_pt(struct x86_mmu_pt *pt, uintptr_t addr,
 	int ret = 0;
 
 	while (true) {
-		u64_t pte = *z_x86_pt_get_pte(pt, pos);
+		uint64_t pte = *z_x86_pt_get_pte(pt, pos);
 
 		if ((pte & Z_X86_MMU_P) == 0 || (pte & Z_X86_MMU_US) == 0 ||
 		    (write && (pte & Z_X86_MMU_RW) == 0)) {
@@ -387,7 +389,7 @@ static int x86_mmu_validate_pd(struct x86_mmu_pd *pd, uintptr_t addr,
 	size_t to_examine;
 
 	while (remaining) {
-		u64_t pde = *z_x86_pd_get_pde(pd, pos);
+		uint64_t pde = *z_x86_pd_get_pde(pd, pos);
 
 		if ((pde & Z_X86_MMU_P) == 0 || (pde & Z_X86_MMU_US) == 0 ||
 		    (write && (pde & Z_X86_MMU_RW) == 0)) {
@@ -429,7 +431,7 @@ static int x86_mmu_validate_pdpt(struct x86_mmu_pdpt *pdpt, uintptr_t addr,
 	size_t to_examine;
 
 	while (remaining) {
-		u64_t pdpte = *z_x86_pdpt_get_pdpte(pdpt, pos);
+		uint64_t pdpte = *z_x86_pdpt_get_pdpte(pdpt, pos);
 
 		if ((pdpte & Z_X86_MMU_P) == 0) {
 			/* Non-present */
@@ -478,7 +480,7 @@ static int x86_mmu_validate_pml4(struct x86_mmu_pml4 *pml4, uintptr_t addr,
 	size_t to_examine;
 
 	while (remaining) {
-		u64_t pml4e = *z_x86_pml4_get_pml4e(pml4, pos);
+		uint64_t pml4e = *z_x86_pml4_get_pml4e(pml4, pos);
 		struct x86_mmu_pdpt *pdpt;
 
 		if ((pml4e & Z_X86_MMU_P) == 0 || (pml4e & Z_X86_MMU_US) == 0 ||
@@ -553,7 +555,7 @@ static inline void tlb_flush_page(void *addr)
 				 Z_X86_MMU_PCD)
 
 void z_x86_mmu_set_flags(struct x86_page_tables *ptables, void *ptr,
-			 size_t size, u64_t flags, u64_t mask, bool flush)
+			 size_t size, uint64_t flags, uint64_t mask, bool flush)
 {
 	uintptr_t addr = (uintptr_t)ptr;
 
@@ -572,13 +574,13 @@ void z_x86_mmu_set_flags(struct x86_page_tables *ptables, void *ptr,
 	 * modified.
 	 */
 	while (size != 0) {
-		u64_t *pte;
-		u64_t *pde;
-		u64_t *pdpte;
+		uint64_t *pte;
+		uint64_t *pde;
+		uint64_t *pdpte;
 #ifdef CONFIG_X86_64
-		u64_t *pml4e;
+		uint64_t *pml4e;
 #endif
-		u64_t cur_flags = flags;
+		uint64_t cur_flags = flags;
 		bool exec = (flags & Z_X86_MMU_XD) == 0;
 
 #ifdef CONFIG_X86_64
@@ -664,6 +666,7 @@ __aligned(PTABLES_ALIGN) struct x86_page_tables z_x86_user_ptables;
 
 extern char z_shared_kernel_page_start[];
 
+#ifdef CONFIG_X86_KPTI
 static inline bool is_within_system_ram(uintptr_t addr)
 {
 #ifdef CONFIG_X86_64
@@ -674,11 +677,12 @@ static inline bool is_within_system_ram(uintptr_t addr)
 		(addr < (PHYS_RAM_ADDR + PHYS_RAM_SIZE));
 #endif
 }
+#endif
 
 /* Ignored bit posiition at all levels */
 #define IGNORED		BIT64(11)
 
-static void maybe_clear_xd(u64_t *entry, bool exec)
+static void maybe_clear_xd(uint64_t *entry, bool exec)
 {
 	/* Execute disable bit needs special handling, we should only set it at
 	 * intermediate levels if ALL containing pages have XD set (instead of
@@ -696,17 +700,17 @@ static void maybe_clear_xd(u64_t *entry, bool exec)
 }
 
 static void add_mmu_region_page(struct x86_page_tables *ptables,
-				uintptr_t addr, u64_t flags, bool user_table)
+				uintptr_t addr, uint64_t flags, bool user_table)
 {
 #ifdef CONFIG_X86_64
-	u64_t *pml4e;
+	uint64_t *pml4e;
 #endif
 	struct x86_mmu_pdpt *pdpt;
-	u64_t *pdpte;
+	uint64_t *pdpte;
 	struct x86_mmu_pd *pd;
-	u64_t *pde;
+	uint64_t *pde;
 	struct x86_mmu_pt *pt;
-	u64_t *pte;
+	uint64_t *pte;
 	bool exec = (flags & Z_X86_MMU_XD) == 0;
 
 #ifdef CONFIG_X86_KPTI
@@ -795,7 +799,7 @@ static void add_mmu_region(struct x86_page_tables *ptables,
 			   bool user_table)
 {
 	size_t size;
-	u64_t flags;
+	uint64_t flags;
 	uintptr_t addr;
 
 	__ASSERT((rgn->address & MMU_PAGE_MASK) == 0U,
@@ -818,7 +822,7 @@ static void add_mmu_region(struct x86_page_tables *ptables,
 }
 
 
-void z_x86_add_mmu_region(uintptr_t addr, size_t size, u64_t flags)
+void z_x86_add_mmu_region(uintptr_t addr, size_t size, uint64_t flags)
 {
 	struct mmu_region rgn = {
 		.address = addr,
@@ -832,29 +836,51 @@ void z_x86_add_mmu_region(uintptr_t addr, size_t size, u64_t flags)
 #endif
 }
 
-void __weak z_x86_soc_add_mmu_regions(void)
+int arch_mem_map(void *dest, uintptr_t addr, size_t size, uint32_t flags)
 {
+	uint64_t entry_flags = Z_X86_MMU_P;
+
+	__ASSERT((uintptr_t)dest == addr,
+		 "only identity mapping supported");
+
+	switch (flags & K_MEM_CACHE_MASK) {
+	case K_MEM_CACHE_NONE:
+		entry_flags |= Z_X86_MMU_PCD;
+		break;
+	case K_MEM_CACHE_WT:
+		entry_flags |= Z_X86_MMU_PWT;
+		break;
+	case K_MEM_CACHE_WB:
+		break;
+	default:
+		return -ENOTSUP;
+	}
+	if ((flags & K_MEM_PERM_RW) != 0) {
+		entry_flags |= Z_X86_MMU_RW;
+	}
+	if ((flags & K_MEM_PERM_USER) != 0) {
+		/* TODO: user mode support
+		 * entry_flags |= MMU_US;
+		 */
+		return -ENOTSUP;
+	}
+	if ((flags & K_MEM_PERM_EXEC) == 0) {
+		entry_flags |= Z_X86_MMU_XD;
+	}
+
+	z_x86_add_mmu_region(addr, size, entry_flags);
+
+	return 0;
 }
 
 /* Called from x86's arch_kernel_init() */
 void z_x86_paging_init(void)
 {
-	size_t pages_free;
-
 	Z_STRUCT_SECTION_FOREACH(mmu_region, rgn) {
 		add_mmu_region(&z_x86_kernel_ptables, rgn, false);
 #ifdef CONFIG_X86_KPTI
 		add_mmu_region(&z_x86_user_ptables, rgn, true);
 #endif
-	}
-
-	z_x86_soc_add_mmu_regions();
-
-	pages_free = (page_pos - page_pool) / MMU_PAGE_SIZE;
-
-	if (pages_free != 0) {
-		printk("Optimal CONFIG_X86_MMU_PAGE_POOL_PAGES %zu\n",
-		       CONFIG_X86_MMU_PAGE_POOL_PAGES - pages_free);
 	}
 
 #ifdef CONFIG_X86_64
@@ -867,6 +893,30 @@ void z_x86_paging_init(void)
 	z_x86_enable_paging();
 #endif
 }
+
+#ifdef CONFIG_X86_STACK_PROTECTION
+void z_x86_set_stack_guard(k_thread_stack_t *stack)
+{
+#ifdef CONFIG_USERSPACE
+	if (z_stack_is_user_capable(stack)) {
+		struct z_x86_thread_stack_header *header =
+			(struct z_x86_thread_stack_header *)stack;
+
+		/* Set guard area to read-only to catch stack overflows */
+		z_x86_mmu_set_flags(&z_x86_kernel_ptables, &header->guard_page,
+				    MMU_PAGE_SIZE, MMU_ENTRY_READ, Z_X86_MMU_RW,
+				    true);
+
+	} else
+#endif /* CONFIG_USERSPACE */
+	{
+		/* Kernel-only stacks have the guard be the first page */
+		z_x86_mmu_set_flags(&z_x86_kernel_ptables, stack,
+				    MMU_PAGE_SIZE, MMU_ENTRY_READ, Z_X86_MMU_RW,
+				    true);
+	}
+}
+#endif /* CONFIG_X86_STACK_PROTECTION */
 
 #ifdef CONFIG_X86_USERSPACE
 int arch_buffer_validate(void *addr, size_t size, int write)
@@ -883,7 +933,7 @@ static uintptr_t thread_pdpt_create(uintptr_t pages,
 	uintptr_t pos = pages, phys_addr = Z_X86_PDPT_START;
 
 	for (int i = 0; i < Z_X86_NUM_PDPT; i++, phys_addr += Z_X86_PDPT_AREA) {
-		u64_t *pml4e;
+		uint64_t *pml4e;
 		struct x86_mmu_pdpt *master_pdpt, *dest_pdpt;
 
 		/* obtain master PDPT tables for the address range and copy
@@ -911,7 +961,7 @@ static uintptr_t thread_pd_create(uintptr_t pages,
 	uintptr_t pos = pages, phys_addr = Z_X86_PD_START;
 
 	for (int i = 0; i < Z_X86_NUM_PD; i++, phys_addr += Z_X86_PD_AREA) {
-		u64_t *pdpte;
+		uint64_t *pdpte;
 		struct x86_mmu_pd *master_pd, *dest_pd;
 
 		/* Obtain PD in master tables for the address range and copy
@@ -941,7 +991,7 @@ static uintptr_t thread_pt_create(uintptr_t pages,
 	uintptr_t pos = pages, phys_addr = Z_X86_PT_START;
 
 	for (int i = 0; i < Z_X86_NUM_PT; i++, phys_addr += Z_X86_PT_AREA) {
-		u64_t *pde;
+		uint64_t *pde;
 		struct x86_mmu_pt *master_pt, *dest_pt;
 
 		/* Same as we did with the directories, obtain PT in master
@@ -1067,7 +1117,7 @@ static void reset_mem_partition(struct x86_page_tables *thread_ptables,
 	__ASSERT((size & MMU_PAGE_MASK) == 0U, "unaligned size provided");
 
 	while (size != 0) {
-		u64_t *thread_pte, *master_pte;
+		uint64_t *thread_pte, *master_pte;
 
 		thread_pte = z_x86_get_pte(thread_ptables, addr);
 		master_pte = z_x86_get_pte(&USER_PTABLES, addr);
@@ -1082,8 +1132,8 @@ static void reset_mem_partition(struct x86_page_tables *thread_ptables,
 static void apply_mem_partition(struct x86_page_tables *ptables,
 				struct k_mem_partition *partition)
 {
-	u64_t x86_attr;
-	u64_t mask;
+	uint64_t x86_attr;
+	uint64_t mask;
 
 	if (IS_ENABLED(CONFIG_X86_KPTI)) {
 		x86_attr = partition->attr | Z_X86_MMU_P;
@@ -1171,7 +1221,7 @@ void z_x86_thread_pt_init(struct k_thread *thread)
  * configuration applied.
  */
 void arch_mem_domain_partition_remove(struct k_mem_domain *domain,
-				      u32_t partition_id)
+				      uint32_t partition_id)
 {
 	sys_dnode_t *node, *next_node;
 
@@ -1230,7 +1280,7 @@ void arch_mem_domain_thread_remove(struct k_thread *thread)
 }
 
 void arch_mem_domain_partition_add(struct k_mem_domain *domain,
-				   u32_t partition_id)
+				   uint32_t partition_id)
 {
 	sys_dnode_t *node, *next_node;
 

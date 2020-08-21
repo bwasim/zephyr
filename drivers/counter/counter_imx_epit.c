@@ -15,7 +15,7 @@
 struct imx_epit_config {
 	struct counter_config_info info;
 	EPIT_Type *base;
-	u16_t prescaler;
+	uint16_t prescaler;
 };
 
 struct imx_epit_data {
@@ -25,7 +25,7 @@ struct imx_epit_data {
 
 static inline const struct imx_epit_config *get_epit_config(struct device *dev)
 {
-	return CONTAINER_OF(dev->config_info, struct imx_epit_config,
+	return CONTAINER_OF(dev->config, struct imx_epit_config,
 			    info);
 }
 
@@ -33,7 +33,7 @@ static void imx_epit_isr(void *arg)
 {
 	struct device *dev = (struct device *)arg;
 	EPIT_Type *base = get_epit_config(dev)->base;
-	struct imx_epit_data *driver_data = dev->driver_data;
+	struct imx_epit_data *driver_data = dev->data;
 
 	EPIT_ClearStatusFlag(base);
 
@@ -87,7 +87,7 @@ static int imx_epit_stop(struct device *dev)
 	return 0;
 }
 
-static int imx_epit_get_value(struct device *dev, u32_t *ticks)
+static int imx_epit_get_value(struct device *dev, uint32_t *ticks)
 {
 	EPIT_Type *base = get_epit_config(dev)->base;
 
@@ -100,7 +100,7 @@ static int imx_epit_set_top_value(struct device *dev,
 				  const struct counter_top_cfg *cfg)
 {
 	EPIT_Type *base = get_epit_config(dev)->base;
-	struct imx_epit_data *driver_data = dev->driver_data;
+	struct imx_epit_data *driver_data = dev->data;
 
 	/* Disable EPIT Output Compare interrupt for consistency */
 	EPIT_SetIntCmd(base, false);
@@ -121,21 +121,21 @@ static int imx_epit_set_top_value(struct device *dev,
 	return 0;
 }
 
-static u32_t imx_epit_get_pending_int(struct device *dev)
+static uint32_t imx_epit_get_pending_int(struct device *dev)
 {
 	EPIT_Type *base = get_epit_config(dev)->base;
 
 	return EPIT_GetStatusFlag(base) ? 1U : 0U;
 }
 
-static u32_t imx_epit_get_top_value(struct device *dev)
+static uint32_t imx_epit_get_top_value(struct device *dev)
 {
 	EPIT_Type *base = get_epit_config(dev)->base;
 
 	return EPIT_GetCounterLoadValue(base);
 }
 
-static u32_t imx_epit_get_max_relative_alarm(struct device *dev)
+static uint32_t imx_epit_get_max_relative_alarm(struct device *dev)
 {
 	return COUNTER_MAX_RELOAD;
 }

@@ -17,10 +17,10 @@ struct mcux_entropy_config {
 	RNG_Type *base;
 };
 
-static int entropy_mcux_rng_get_entropy(struct device *dev, u8_t *buffer,
-					 u16_t length)
+static int entropy_mcux_rng_get_entropy(struct device *dev, uint8_t *buffer,
+					 uint16_t length)
 {
-	const struct mcux_entropy_config *config = dev->config_info;
+	const struct mcux_entropy_config *config = dev->config;
 	status_t status;
 
 	ARG_UNUSED(dev);
