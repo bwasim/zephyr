@@ -1,0 +1,10 @@
+# Sensirion SPS30 Particulate Matter Sensor configuration options
+
+# Copyright (c) 2020 Bilal Wasim
+# SPDX-License-Identifier: Apache-2.0
+
+config SENSIRION_SPS30
+	bool "SPS30 Particulate Matter Sensor"
+	depends on I2C && HAS_DTS_I2C
+	help
+	  Enable driver for Sensirion SPS30 Particulate Matter Sensor.
