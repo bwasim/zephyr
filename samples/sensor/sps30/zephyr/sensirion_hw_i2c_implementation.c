@@ -52,13 +52,10 @@ static struct device *sps30_i2c_dev;
 int16_t sensirion_i2c_select_bus(uint8_t bus_idx)
 {
 	int16_t status = STATUS_FAIL;
-	char bus_name[10] = {'\0'}; char bus_index[3] = {'\0'};
+	char bus_name[6] = "I2C_0";
 
-	itoa(bus_index, bus_idx, 10);
-	strcpy(bus_name, "I2C_");
-	strcat(bus_name, bus_index);
-
-	/* Get device from the provided bus index. */
+	/* Get device from the provided bus index (only support 0-9). */
+	bus_name[4] = bus_idx +'0';
 	sps30_i2c_dev = device_get_binding(bus_name);
 	if (sps30_i2c_dev != NULL)
 		status = STATUS_OK;
