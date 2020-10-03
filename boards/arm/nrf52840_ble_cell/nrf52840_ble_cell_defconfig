@@ -24,3 +24,12 @@ CONFIG_USE_SEGGER_RTT=y
 
 # Additional board options
 CONFIG_GPIO_AS_PINRESET=y
+
+# Quectel BG9x modem
+CONFIG_MODEM=y
+CONFIG_MODEM_QUECTEL_BG9X=y
+
+# Networking (required for modem)
+CONFIG_NETWORKING=y
+CONFIG_NET_SOCKETS=y
+CONFIG_NET_SOCKETS_OFFLOAD=y
