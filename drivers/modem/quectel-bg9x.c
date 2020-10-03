@@ -96,12 +96,13 @@ static int modem_init(const struct device *dev)
 	if (ret < 0)
 		goto error;
 
-#if 0
 	/* cmd handler */
+#if 0
 	mdata.cmd_handler_data.cmds[CMD_RESP]      = response_cmds;
 	mdata.cmd_handler_data.cmds_len[CMD_RESP]  = ARRAY_SIZE(response_cmds);
 	mdata.cmd_handler_data.cmds[CMD_UNSOL]     = unsol_cmds;
 	mdata.cmd_handler_data.cmds_len[CMD_UNSOL] = ARRAY_SIZE(unsol_cmds);
+#endif /* Will be added back once support is made available. */
 	mdata.cmd_handler_data.read_buf            = &mdata.cmd_read_buf[0];
 	mdata.cmd_handler_data.read_buf_len        = sizeof(mdata.cmd_read_buf);
 	mdata.cmd_handler_data.match_buf           = &mdata.cmd_match_buf[0];
@@ -113,7 +114,6 @@ static int modem_init(const struct device *dev)
 				     	 	 	 &mdata.cmd_handler_data);
 	if (ret < 0)
 		goto error;
-#endif
 
 	/* modem interface */
 	mdata.iface_data.isr_buf       = &mdata.iface_isr_buf[0];
@@ -156,6 +156,7 @@ error:
 	return ret;
 }
 
+/* Register the device with the Networking stack. */
 NET_DEVICE_OFFLOAD_INIT(modem_gb9x, CONFIG_MODEM_QUECTEL_BG9X_NAME,
 			modem_init, device_pm_control_nop, &mdata, NULL,
 			CONFIG_MODEM_QUECTEL_BG9X_INIT_PRIORITY, &api_funcs,
