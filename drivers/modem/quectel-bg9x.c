@@ -117,6 +117,44 @@ restart:
 	if (ret < 0)
 		goto error;
 
+	/* query modem RSSI */
+	modem_rssi_query_work(NULL);
+	k_sleep(MDM_WAIT_FOR_RSSI_DELAY);
+
+	/* Keep trying to read RSSI until we get a valid value - Eventually, exit. */
+	while (counter++ < MDM_WAIT_FOR_RSSI_COUNT &&
+	      (mctx.data_rssi >= 0 || mctx.data_rssi <= -1000))
+	{
+		modem_rssi_query_work(NULL);
+		k_sleep(MDM_WAIT_FOR_RSSI_DELAY);
+	}
+
+	/* Is the RSSI invalid ? */
+	if (mctx.data_rssi >= 0 || mctx.data_rssi <= -1000)
+	{
+		retry_count ++;
+
+		/* Exit if we've tried long enough and its still not working.
+		 * Indicates a much deeper problem. */
+		if (retry_count >= MDM_NETWORK_RETRY_COUNT)
+		{
+			LOG_ERR("Failed network init. Too many attempts!");
+			ret = -ENETUNREACH;
+			goto error;
+		}
+
+		/* Try again! */
+		LOG_ERR("Failed network init. Restarting process.");
+		goto restart;
+	}
+
+	/* Network is ready - Start RSSI work in the background to inform us if
+	 * signal strength drops down. */
+	LOG_INF("Network is ready.");
+	k_delayed_work_submit_to_queue(&modem_workq,
+				       &mdata.rssi_query_work,
+				       K_SECONDS(RSSI_TIMEOUT_SECS));
+
 #if 0
 
 	if (strlen(CONFIG_MODEM_UBLOX_SARA_R4_MANUAL_MCCMNO) > 0) {
@@ -170,31 +208,6 @@ restart:
 		k_sleep(K_SECONDS(1));
 	}
 
-	/* query modem RSSI */
-	modem_rssi_query_work(NULL);
-	k_sleep(MDM_WAIT_FOR_RSSI_DELAY);
-
-	counter = 0;
-	/* wait for RSSI < 0 and > -1000 */
-	while (counter++ < MDM_WAIT_FOR_RSSI_COUNT &&
-	       (mctx.data_rssi >= 0 ||
-		mctx.data_rssi <= -1000)) {
-		modem_rssi_query_work(NULL);
-		k_sleep(MDM_WAIT_FOR_RSSI_DELAY);
-	}
-
-	if (mctx.data_rssi >= 0 || mctx.data_rssi <= -1000) {
-		retry_count++;
-		if (retry_count >= MDM_NETWORK_RETRY_COUNT) {
-			LOG_ERR("Failed network init.  Too many attempts!");
-			ret = -ENETUNREACH;
-			goto error;
-		}
-
-		LOG_ERR("Failed network init.  Restarting process.");
-		goto restart;
-	}
-
 	ret = modem_cmd_handler_setup_cmds(&mctx.iface,
 				   &mctx.cmd_handler,
 				   post_setup_cmds,
@@ -203,13 +216,6 @@ restart:
 				   MDM_REGISTRATION_TIMEOUT);
 	if (ret < 0)
 		goto error;
-
-	LOG_INF("Network is ready.");
-
-	/* start RSSI query */
-	k_delayed_work_submit_to_queue(&modem_workq,
-				       &mdata.rssi_query_work,
-				       K_SECONDS(RSSI_TIMEOUT_SECS));
 
 #endif
 
