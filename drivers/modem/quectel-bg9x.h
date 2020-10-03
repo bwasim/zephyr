@@ -54,6 +54,9 @@
 #define MDM_APN_LENGTH			  32
 #define RSSI_TIMEOUT_SECS		  30
 
+/* Modem ATOI routine. */
+#define ATOI(s_, value_, desc_)   modem_atoi(s_, value_, desc_, __func__)
+
 /* pin settings */
 enum mdm_control_pins {
 	MDM_POWER = 0,
@@ -99,9 +102,10 @@ struct modem_data {
 	struct k_sem sem_response;
 };
 
-/* Kernel stack(s). */
-K_KERNEL_STACK_DEFINE(modem_rx_stack,    CONFIG_MODEM_QUECTEL_BG9X_RX_STACK_SIZE);
+/* Allocating static memory for various routines / buffers. */
+K_KERNEL_STACK_DEFINE(modem_rx_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_STACK_SIZE);
 K_KERNEL_STACK_DEFINE(modem_workq_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_WORKQ_STACK_SIZE);
+NET_BUF_POOL_DEFINE(mdm_recv_pool, MDM_RECV_MAX_BUF, MDM_RECV_BUF_SIZE, 0, NULL);
 
 /* Modem data structures. */
 struct k_thread             modem_rx_thread;

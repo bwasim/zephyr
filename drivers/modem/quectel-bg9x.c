@@ -31,7 +31,25 @@ static void modem_rx(void)
 /* Func: modem_rssi_query_work
  * Desc: Routine to get Modem RSSI. */
 static void modem_rssi_query_work(struct k_work *work)
-{}
+{
+	struct modem_cmd cmd  = MODEM_CMD("+CSQ: ", on_cmd_atcmdinfo_rssi_csq, 2U, ",");
+	static char *send_cmd = "AT+CSQ";
+	int ret;
+
+	/* query modem RSSI */
+	ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+			     	     &cmd, 1U, send_cmd, &mdata.sem_response,
+						 MDM_CMD_TIMEOUT);
+	if (ret < 0)
+		LOG_ERR("AT+CSQ ret:%d", ret);
+
+	/* Re-start RSSI query work */
+	if (work) {
+		k_delayed_work_submit_to_queue(&modem_workq,
+					       	   	   	   &mdata.rssi_query_work,
+									   K_SECONDS(RSSI_TIMEOUT_SECS));
+	}
+}
 
 /* --------------------------------------------------------------------------
  * Everything beyond this point is just code to tie things up with the Zephyr

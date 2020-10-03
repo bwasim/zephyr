@@ -54,4 +54,47 @@ static int net_offload_dummy_get(sa_family_t family, enum net_sock_type type,
 	return -ENOTSUP;
 }
 
+/* Func: modem_atoi
+ * Desc: Convert string to long integer, but handle errors */
+static int modem_atoi(const char *s, const int err_value,
+		      	  	  const char *desc, const char *func)
+{
+	int   ret;
+	char  *endptr;
+
+	ret = (int)strtol(s, &endptr, 10);
+	if (!endptr || *endptr != '\0')
+	{
+		LOG_ERR("bad %s '%s' in %s", log_strdup(s), log_strdup(desc),
+				log_strdup(func));
+		return err_value;
+	}
+
+	return ret;
+}
+
+/* --------------------------------------------------------------------------
+ * Everything beyond this point are implementation of Modem command handlers.
+ * Whenever we send a command to the modem (via modem_cmd_send), the modem has
+ * to respond with some sort of message. As these responses can vary a lot, we
+ * need different handlers to handle different kinds of responses.
+ * -------------------------------------------------------------------------- */
+
+/* Handler: +CSQ: <signal_power>[0], <qual>[1] */
+MODEM_CMD_DEFINE(on_cmd_atcmdinfo_rssi_csq)
+{
+	int rssi = ATOI(argv[0], 0, "signal_power");
+
+	/* Check the RSSI value. */
+	if (rssi == 31)
+		mctx.data_rssi = -51;
+	else if (rssi >= 0 && rssi <= 31)
+		mctx.data_rssi = -114 + ((rssi * 2) + 1);
+	else
+		mctx.data_rssi = -1000;
+
+	LOG_INF("RSSI: %d", mctx.data_rssi);
+	return 0;
+}
+
 #endif /* #ifndef MODEM_HELPER_H */
