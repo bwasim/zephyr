@@ -73,6 +73,33 @@ static int modem_atoi(const char *s, const int err_value,
 	return ret;
 }
 
+/* Func: modem_at
+ * Desc: Send "AT" command to the modem and wait for it to
+ *       respond. Eventually as everything is "finite", we will give
+ *       up and kill the driver. */
+static int modem_at(struct modem_context *mctx, struct modem_data *mdata)
+{
+	int counter = 0, ret = -1;
+
+	while (counter < 50 && ret < 0)
+	{
+		k_sleep(K_SECONDS(2));
+
+		/* Send "AT" command to the modem. */
+		ret = modem_cmd_send(&mctx->iface, &mctx->cmd_handler,
+				     	 	 NULL, 0, "AT", &mdata->sem_response,
+							 MDM_CMD_TIMEOUT);
+
+		/* Check the response from the Modem. */
+		if (ret < 0 && ret != -ETIMEDOUT)
+			return ret;
+
+		counter ++;
+	}
+
+	return ret;
+}
+
 /* --------------------------------------------------------------------------
  * Everything beyond this point are implementation of Modem command handlers.
  * Whenever we send a command to the modem (via modem_cmd_send), the modem has
@@ -94,6 +121,69 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_rssi_csq)
 		mctx.data_rssi = -1000;
 
 	LOG_INF("RSSI: %d", mctx.data_rssi);
+	return 0;
+}
+
+/* Handler: <manufacturer> */
+MODEM_CMD_DEFINE(on_cmd_atcmdinfo_manufacturer)
+{
+	size_t out_len = net_buf_linearize(mdata.mdm_manufacturer,
+				    		sizeof(mdata.mdm_manufacturer) - 1,
+							data->rx_buf, 0, len);
+	mdata.mdm_manufacturer[out_len] = '\0';
+	LOG_INF("Manufacturer: %s", log_strdup(mdata.mdm_manufacturer));
+	return 0;
+}
+
+/* Handler: <model> */
+MODEM_CMD_DEFINE(on_cmd_atcmdinfo_model)
+{
+	size_t out_len = net_buf_linearize(mdata.mdm_model,
+				    		sizeof(mdata.mdm_model) - 1,
+							data->rx_buf, 0, len);
+	mdata.mdm_model[out_len] = '\0';
+
+	/* Log the received information. */
+	LOG_INF("Model: %s", log_strdup(mdata.mdm_model));
+	return 0;
+}
+
+/* Handler: <rev> */
+MODEM_CMD_DEFINE(on_cmd_atcmdinfo_revision)
+{
+	 size_t out_len = net_buf_linearize(mdata.mdm_revision,
+				    		sizeof(mdata.mdm_revision) - 1,
+							data->rx_buf, 0, len);
+	mdata.mdm_revision[out_len] = '\0';
+
+	/* Log the received information. */
+	LOG_INF("Revision: %s", log_strdup(mdata.mdm_revision));
+	return 0;
+}
+
+/* Handler: <IMEI> */
+MODEM_CMD_DEFINE(on_cmd_atcmdinfo_imei)
+{
+	size_t out_len = net_buf_linearize(mdata.mdm_imei,
+							sizeof(mdata.mdm_imei) - 1,
+				    		data->rx_buf, 0, len);
+	mdata.mdm_imei[out_len] = '\0';
+
+	/* Log the received information. */
+	LOG_INF("IMEI: %s", log_strdup(mdata.mdm_imei));
+	return 0;
+}
+
+/* Handler: <IMSI> */
+MODEM_CMD_DEFINE(on_cmd_atcmdinfo_imsi)
+{
+	size_t  out_len = net_buf_linearize(mdata.mdm_imsi,
+							sizeof(mdata.mdm_imsi) - 1,
+				    		data->rx_buf, 0, len);
+	mdata.mdm_imsi[out_len] = '\0';
+
+	/* Log the received information. */
+	LOG_INF("IMSI: %s", log_strdup(mdata.mdm_imsi));
 	return 0;
 }
 

@@ -16,6 +16,17 @@ LOG_MODULE_REGISTER(modem_quectel_bg9x, CONFIG_MODEM_LOG_LEVEL);
 #include "quectel-bg9x.h"
 #include "modem_helper.h"
 
+/* Setup commands - Commands sent to the modem to set it up at boot time. */
+static struct setup_cmd setup_cmds[] =
+{
+	/* Commands to read info from the modem (things like IMEI, Model etc). */
+	SETUP_CMD("AT+CGMI", "", on_cmd_atcmdinfo_manufacturer, 0U, ""),
+	SETUP_CMD("AT+CGMM", "", on_cmd_atcmdinfo_model, 0U, ""),
+	SETUP_CMD("AT+CGMR", "", on_cmd_atcmdinfo_revision, 0U, ""),
+	SETUP_CMD("AT+CGSN", "", on_cmd_atcmdinfo_imei, 0U, ""),
+	SETUP_CMD("AT+CIMI", "", on_cmd_atcmdinfo_imsi, 0U, ""),
+};
+
 /* Func: modem_rx
  * Desc: Thread to process all messages received from the Modem. */
 static void modem_rx(void)
@@ -44,11 +55,143 @@ static void modem_rssi_query_work(struct k_work *work)
 		LOG_ERR("AT+CSQ ret:%d", ret);
 
 	/* Re-start RSSI query work */
-	if (work) {
+	if (work)
+	{
 		k_delayed_work_submit_to_queue(&modem_workq,
 					       	   	   	   &mdata.rssi_query_work,
 									   K_SECONDS(RSSI_TIMEOUT_SECS));
 	}
+}
+
+/* Func: modem_setup
+ * Desc: This function is used to setup the modem from zero. The idea
+ *       is that this function will be called right after the modem is
+ *       powered on to do the stuff necessary to talk to the modem. */
+static void modem_setup(void)
+{
+	int ret = 0, retry_count = 0, counter = 0;
+
+restart:
+
+	/* stop RSSI delay work */
+	k_delayed_work_cancel(&mdata.rssi_query_work);
+
+	/* pin_init(); */
+
+	/* Let the modem respond. */
+	LOG_INF("Waiting for modem to respond");
+	ret = modem_at(&mctx, &mdata);
+	if (ret < 0)
+	{
+		LOG_ERR("MODEM WAIT LOOP ERROR: %d", ret);
+		goto error;
+	}
+
+	/* Run setup commands on the modem. */
+	ret = modem_cmd_handler_setup_cmds(&mctx.iface, &mctx.cmd_handler,
+					   	   setup_cmds, ARRAY_SIZE(setup_cmds),
+						   &mdata.sem_response, MDM_REGISTRATION_TIMEOUT);
+	if (ret < 0)
+		goto error;
+
+#if 0
+
+	if (strlen(CONFIG_MODEM_UBLOX_SARA_R4_MANUAL_MCCMNO) > 0) {
+		/* use manual MCC/MNO entry */
+		ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+				     NULL, 0,
+				     "AT+COPS=1,2,\""
+					CONFIG_MODEM_UBLOX_SARA_R4_MANUAL_MCCMNO
+					"\"",
+				     &mdata.sem_response,
+				     MDM_REGISTRATION_TIMEOUT);
+	} else {
+		/* register operator automatically */
+		ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+				     NULL, 0, "AT+COPS=0,0",
+				     &mdata.sem_response,
+				     MDM_REGISTRATION_TIMEOUT);
+	}
+
+	if (ret < 0) {
+		LOG_ERR("AT+COPS ret:%d", ret);
+		goto error;
+	}
+
+	LOG_INF("Waiting for network");
+
+	/*
+	 * TODO: A lot of this should be setup as a 3GPP module to handle
+	 * basic connection to the network commands / polling
+	 */
+
+	/* wait for +CREG: 1(normal) or 5(roaming) */
+	counter = 0;
+	while (counter++ < 40 && mdata.ev_creg != 1 && mdata.ev_creg != 5) {
+		if (counter == 20) {
+			LOG_WRN("Force restart of RF functionality");
+
+			/* Disable RF temporarily */
+			ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+				NULL, 0, "AT+CFUN=0", &mdata.sem_response,
+				MDM_CMD_TIMEOUT);
+
+			k_sleep(K_SECONDS(1));
+
+			/* Enable RF */
+			ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+				NULL, 0, "AT+CFUN=1", &mdata.sem_response,
+				MDM_CMD_TIMEOUT);
+		}
+
+		k_sleep(K_SECONDS(1));
+	}
+
+	/* query modem RSSI */
+	modem_rssi_query_work(NULL);
+	k_sleep(MDM_WAIT_FOR_RSSI_DELAY);
+
+	counter = 0;
+	/* wait for RSSI < 0 and > -1000 */
+	while (counter++ < MDM_WAIT_FOR_RSSI_COUNT &&
+	       (mctx.data_rssi >= 0 ||
+		mctx.data_rssi <= -1000)) {
+		modem_rssi_query_work(NULL);
+		k_sleep(MDM_WAIT_FOR_RSSI_DELAY);
+	}
+
+	if (mctx.data_rssi >= 0 || mctx.data_rssi <= -1000) {
+		retry_count++;
+		if (retry_count >= MDM_NETWORK_RETRY_COUNT) {
+			LOG_ERR("Failed network init.  Too many attempts!");
+			ret = -ENETUNREACH;
+			goto error;
+		}
+
+		LOG_ERR("Failed network init.  Restarting process.");
+		goto restart;
+	}
+
+	ret = modem_cmd_handler_setup_cmds(&mctx.iface,
+				   &mctx.cmd_handler,
+				   post_setup_cmds,
+				   ARRAY_SIZE(post_setup_cmds),
+				   &mdata.sem_response,
+				   MDM_REGISTRATION_TIMEOUT);
+	if (ret < 0)
+		goto error;
+
+	LOG_INF("Network is ready.");
+
+	/* start RSSI query */
+	k_delayed_work_submit_to_queue(&modem_workq,
+				       &mdata.rssi_query_work,
+				       K_SECONDS(RSSI_TIMEOUT_SECS));
+
+#endif
+
+error:
+	return;
 }
 
 /* --------------------------------------------------------------------------
@@ -127,7 +270,7 @@ static int modem_init(const struct device *dev)
 	mdata.cmd_handler_data.match_buf_len       = sizeof(mdata.cmd_match_buf);
 	mdata.cmd_handler_data.buf_pool            = &mdm_recv_pool;
 	mdata.cmd_handler_data.alloc_timeout       = BUF_ALLOC_TIMEOUT;
-	mdata.cmd_handler_data.eol                 = "\r";
+	mdata.cmd_handler_data.eol                 = "\r\n";
 	ret = modem_cmd_handler_init(&mctx.cmd_handler,
 				     	 	 	 &mdata.cmd_handler_data);
 	if (ret < 0)
@@ -168,7 +311,7 @@ static int modem_init(const struct device *dev)
 
 	/* Init RSSI query */
 	k_delayed_work_init(&mdata.rssi_query_work, modem_rssi_query_work);
-	/* modem_reset(); */
+	modem_setup();
 
 error:
 	return ret;

@@ -38,7 +38,7 @@
 #define MDM_MAX_DATA_LENGTH		  1024
 #define MDM_RECV_MAX_BUF		  30
 #define MDM_RECV_BUF_SIZE		  128
-#define MDM_MAX_SOCKETS			  6
+#define MDM_MAX_SOCKETS			  5
 #define MDM_BASE_SOCKET_NUM		  0
 #define MDM_NETWORK_RETRY_COUNT	  3
 #define MDM_WAIT_FOR_RSSI_COUNT	  10
@@ -114,8 +114,8 @@ static struct modem_data    mdata;
 static struct modem_context mctx;
 
 /* Modem pins - Power & Reset. */
-static struct modem_pin modem_pins[] = {
-
+static struct modem_pin modem_pins[] =
+{
 	/* MDM_POWER */
 	MODEM_PIN(DT_INST_GPIO_LABEL(0, mdm_power_gpios),
 			  DT_INST_GPIO_PIN(0, mdm_power_gpios),
