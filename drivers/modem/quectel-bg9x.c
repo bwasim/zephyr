@@ -63,6 +63,28 @@ static void modem_rssi_query_work(struct k_work *work)
 	}
 }
 
+/* Func: pin_init
+ * Desc: DT bindings of quectel,bg9x marks power / reset pins as mandatory,
+ *       and these pins are necessary to setup to get the modem up & running. */
+static void pin_init(void)
+{
+	LOG_INF("Setting Modem Pins");
+
+	/* NOTE: Per the BG95 document, the Reset pin is internally connected to the
+	 * Power key pin. */
+
+	/* MDM_POWER -> 1 for 500-1000 msec. */
+	modem_pin_write(&mctx, MDM_POWER, 1);
+	k_sleep(K_MSEC(750));
+
+	/* MDM_POWER -> 0 and wait for ~2secs as UART remains in "inactive" state
+	 * for some time after the power signal is enabled. */
+	modem_pin_write(&mctx, MDM_POWER, 0);
+	k_sleep(K_SECONDS(2));
+
+	LOG_INF("... Done!");
+}
+
 /* Func: modem_setup
  * Desc: This function is used to setup the modem from zero. The idea
  *       is that this function will be called right after the modem is
@@ -76,7 +98,8 @@ restart:
 	/* stop RSSI delay work */
 	k_delayed_work_cancel(&mdata.rssi_query_work);
 
-	/* pin_init(); */
+	/* Setup the pins to ensure that Modem is enabled. */
+	pin_init();
 
 	/* Let the modem respond. */
 	LOG_INF("Waiting for modem to respond");
