@@ -41,6 +41,83 @@ static struct setup_cmd setup_cmds[] =
  * the internet.
  * -------------------------------------------------------------------------- */
 
+/* Func: offload_read
+ * Desc: This function reads data from the given socket object. */
+static ssize_t offload_read(void *obj, void *buffer, size_t count)
+{
+#if 0
+	return offload_recvfrom(obj, buffer, count, 0, NULL, 0);
+#else
+	return 0;
+#endif
+}
+
+/* Func: offload_write
+ * Desc: This function writes data to the given socket object. */
+static ssize_t offload_write(void *obj, const void *buffer, size_t count)
+{
+#if 0
+	return offload_sendto(obj, buffer, count, 0, NULL, 0);
+#else
+	return 0;
+#endif
+}
+
+/* Func: offload_poll
+ * Desc: This function polls on a given socket object. */
+static int offload_poll(struct zsock_pollfd *fds, int nfds, int msecs)
+{
+	int i;
+	void *obj;
+
+	/* Only accept modem sockets. */
+	for (i = 0; i < nfds; i++)
+	{
+		if (fds[i].fd < 0)
+			continue;
+
+		/* If vtable matches, then it's modem socket. */
+		obj = z_get_fd_obj(fds[i].fd,
+				   (const struct fd_op_vtable *) &offload_socket_fd_op_vtable,
+				   EINVAL);
+		if (obj == NULL)
+			return -1;
+	}
+
+	return modem_socket_poll(&mdata.socket_config, fds, nfds, msecs);
+}
+
+/* Func: offload_ioctl
+ * Desc: Function call to handle various misc requests. */
+static int offload_ioctl(void *obj, unsigned int request, va_list args)
+{
+	switch (request)
+	{
+		case ZFD_IOCTL_POLL_PREPARE:
+			return -EXDEV;
+
+		case ZFD_IOCTL_POLL_UPDATE:
+			return -EOPNOTSUPP;
+
+		case ZFD_IOCTL_POLL_OFFLOAD:
+		{
+			/* Poll on the given socket. */
+			struct zsock_pollfd *fds;
+			int nfds, timeout;
+
+			fds = va_arg(args, struct zsock_pollfd *);
+			nfds = va_arg(args, int);
+			timeout = va_arg(args, int);
+
+			return offload_poll(fds, nfds, timeout);
+		}
+
+		default:
+			errno = EINVAL;
+			return -1;
+	}
+}
+
 /* Func: offload_connect
  * Desc: This function will connect with a provided TCP / UDP host. */
 static int offload_connect(void *obj, const struct sockaddr *addr,
@@ -237,10 +314,10 @@ error:
 
 static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	.fd_vtable = {
-		.read 	= NULL,
-		.write 	= NULL,
+		.read 	= offload_read,
+		.write 	= offload_write,
 		.close 	= NULL,
-		.ioctl 	= NULL,
+		.ioctl 	= offload_ioctl,
 	},
 	.bind 		= NULL,
 	.connect 	= offload_connect,

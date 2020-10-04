@@ -110,10 +110,11 @@ K_KERNEL_STACK_DEFINE(modem_workq_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_WORKQ_STAC
 NET_BUF_POOL_DEFINE(mdm_recv_pool, MDM_RECV_MAX_BUF, MDM_RECV_BUF_SIZE, 0, NULL);
 
 /* Modem data structures. */
-struct k_thread             modem_rx_thread;
-static struct k_work_q      modem_workq;
-static struct modem_data    mdata;
-static struct modem_context mctx;
+struct k_thread                      modem_rx_thread;
+static struct k_work_q               modem_workq;
+static struct modem_data             mdata;
+static struct modem_context          mctx;
+static const struct socket_op_vtable offload_socket_fd_op_vtable;
 
 /* Modem pins - Power & Reset. */
 static struct modem_pin modem_pins[] =
