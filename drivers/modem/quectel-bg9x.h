@@ -54,6 +54,8 @@
 #define MDM_APN_LENGTH			  32
 #define RSSI_TIMEOUT_SECS		  30
 
+#define MDM_APN                   CONFIG_MODEM_QUECTEL_BG9X_APN
+
 /* Modem ATOI routine. */
 #define ATOI(s_, value_, desc_)   modem_atoi(s_, value_, desc_, __func__)
 

@@ -16,7 +16,10 @@ LOG_MODULE_REGISTER(modem_quectel_bg9x, CONFIG_MODEM_LOG_LEVEL);
 #include "quectel-bg9x.h"
 #include "modem_helper.h"
 
-/* Setup commands - Commands sent to the modem to set it up at boot time. */
+/* Setup commands - Commands sent to the modem to set it up at boot time.
+ * TODO: We assume that the SIM card is already connected, and so there is
+ * no handling if the card is not connected - Not critical and will be added
+ * after the driver is fully functional. */
 static struct setup_cmd setup_cmds[] =
 {
 	/* Commands to read info from the modem (things like IMEI, Model etc). */
@@ -25,6 +28,11 @@ static struct setup_cmd setup_cmds[] =
 	SETUP_CMD("AT+CGMR", "", on_cmd_atcmdinfo_revision, 0U, ""),
 	SETUP_CMD("AT+CGSN", "", on_cmd_atcmdinfo_imei, 0U, ""),
 	SETUP_CMD("AT+CIMI", "", on_cmd_atcmdinfo_imsi, 0U, ""),
+
+	/* Connect the Modem to APN. */
+	SETUP_CMD_NOHANDLE("AT+CGDCONT=1"),
+	SETUP_CMD_NOHANDLE("AT+CGDCONT=1,\"IP\",\"" MDM_APN "\""),
+	SETUP_CMD_NOHANDLE("AT+QIACT=1"),
 };
 
 /* Func: modem_rx
