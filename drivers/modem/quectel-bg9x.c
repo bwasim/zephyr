@@ -171,6 +171,83 @@ static int offload_connect(void *obj, const struct sockaddr *addr,
 	return 0;
 }
 
+/* Func: offload_close
+ * Desc: This function closes the connection with the remote client and
+ *       frees the socket. */
+static int offload_close(void *obj)
+{
+	struct modem_socket *sock = (struct modem_socket *) obj;
+	char                buf[32];
+	int                 ret;
+
+	/* Make sure we assigned an id */
+	if (sock->id < mdata.socket_config.base_socket_num)
+		return 0;
+
+	/* Close the socket only if it is connected. */
+	if (sock->is_connected)
+	{
+		snprintk(buf, sizeof(buf), "AT+QICLOSE=%d,%d", 0, 3);
+
+		/* Tell the modem to close the socket (as with the "connect" call, we hardcode
+		 * the socket id to 0. */
+		ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+				     	 	 NULL, 0U, buf,
+							 &mdata.sem_response, MDM_CMD_TIMEOUT);
+		if (ret < 0)
+			LOG_ERR("%s ret:%d", log_strdup(buf), ret);
+	}
+
+	modem_socket_put(&mdata.socket_config, sock->sock_fd);
+	return 0;
+}
+
+/* Func: offload_sendmsg
+ * Desc: This function sends messages to the modem. */
+static ssize_t offload_sendmsg(void *obj, const struct msghdr *msg, int flags)
+{
+	ssize_t sent = 0;
+	int rc;
+
+	LOG_DBG("msg_iovlen:%d flags:%d", msg->msg_iovlen, flags);
+
+	for (int i = 0; i < msg->msg_iovlen; i++)
+	{
+		const char *buf = msg->msg_iov[i].iov_base;
+		size_t len      = msg->msg_iov[i].iov_len;
+
+		while (len > 0)
+		{
+#if 0
+			rc = offload_sendto(obj, buf, len, flags,
+							    msg->msg_name, msg->msg_namelen);
+#else
+			rc = 0;
+#endif
+			if (rc < 0)
+			{
+				if (rc == -EAGAIN)
+				{
+					k_sleep(MDM_SENDMSG_SLEEP);
+				}
+				else
+				{
+					sent = rc;
+					break;
+				}
+			}
+			else
+			{
+				sent += rc;
+				buf += rc;
+				len -= rc;
+			}
+		}
+	}
+
+	return (ssize_t) sent;
+}
+
 /* --------------------------------------------------------------------------
  * Implementation of Modem Offload API(s) ends here.
  * -------------------------------------------------------------------------- */
@@ -316,7 +393,7 @@ static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	.fd_vtable = {
 		.read 	= offload_read,
 		.write 	= offload_write,
-		.close 	= NULL,
+		.close 	= offload_close,
 		.ioctl 	= offload_ioctl,
 	},
 	.bind 		= NULL,
@@ -325,7 +402,7 @@ static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	.recvfrom 	= NULL,
 	.listen 	= NULL,
 	.accept 	= NULL,
-	.sendmsg    = NULL,
+	.sendmsg    = offload_sendmsg,
 	.getsockopt = NULL,
 	.setsockopt = NULL,
 };
