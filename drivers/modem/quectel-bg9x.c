@@ -35,6 +35,69 @@ static struct setup_cmd setup_cmds[] =
 	SETUP_CMD_NOHANDLE("AT+QIACT=1"),
 };
 
+/* --------------------------------------------------------------------------
+ * Implementation of Modem Offload API(s) which allow normal Zephyr apps to
+ * connect, disconnect, send / recv data and other stuff to/from any host on
+ * the internet.
+ * -------------------------------------------------------------------------- */
+
+/* Func: offload_connect
+ * Desc: This function will connect with a provided TCP / UDP host. */
+static int offload_connect(void *obj, const struct sockaddr *addr,
+			   	   	   	   socklen_t addrlen)
+{
+	struct modem_socket *sock     = (struct modem_socket *) obj;
+	uint16_t            dst_port  = 0;
+	char                *protocol = "TCP", buf[64] = {0};
+	int                 ret;
+
+	if (sock->id < mdata.socket_config.base_socket_num - 1)
+	{
+		LOG_ERR("Invalid socket_id(%d) from fd:%d",
+				sock->id, sock->sock_fd);
+		errno = EINVAL;
+		return -1;
+	}
+
+	/* Find the correct destination port. */
+	if (addr->sa_family == AF_INET6)
+		dst_port = ntohs(net_sin6(addr)->sin6_port);
+	else if (addr->sa_family == AF_INET)
+		dst_port = ntohs(net_sin(addr)->sin_port);
+
+	/* Are we dealing with UDP or TCP? */
+	if (sock->ip_proto == IPPROTO_UDP)
+		protocol = "UDP";
+
+	/* Formulate the complete string.
+	 * TODO: We are always using "socket 0" instead of dynamically deciding which one
+	 * to use. This is OK for most apps in general and especially OK during project dev,
+	 * but we will eventually add support for all sockets. Shouldn't take more than
+	 * 30 mins to implement. */
+	snprintk(buf, sizeof(buf), "AT+QIOPEN=%d,%d,\"%s\",\"%s\",%d,0,0", 0, 0, protocol,
+		     modem_context_sprint_ip_addr(addr), dst_port);
+
+	/* Send out the command. */
+	ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+			     	 	 NULL, 0U, buf,
+						 &mdata.sem_response, MDM_CMD_CONN_TIMEOUT);
+	if (ret < 0)
+	{
+		LOG_ERR("%s ret:%d", log_strdup(buf), ret);
+		errno = -ret;
+		return -1;
+	}
+
+	/* Connected successfully. */
+	sock->is_connected = true;
+	errno = 0;
+	return 0;
+}
+
+/* --------------------------------------------------------------------------
+ * Implementation of Modem Offload API(s) ends here.
+ * -------------------------------------------------------------------------- */
+
 /* Func: modem_rx
  * Desc: Thread to process all messages received from the Modem. */
 static void modem_rx(void)
@@ -180,7 +243,7 @@ static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 		.ioctl 	= NULL,
 	},
 	.bind 		= NULL,
-	.connect 	= NULL,
+	.connect 	= offload_connect,
 	.sendto 	= NULL,
 	.recvfrom 	= NULL,
 	.listen 	= NULL,
@@ -231,9 +294,9 @@ static int modem_init(const struct device *dev)
 		goto error;
 
 	/* cmd handler */
-#if 0
 	mdata.cmd_handler_data.cmds[CMD_RESP]      = response_cmds;
 	mdata.cmd_handler_data.cmds_len[CMD_RESP]  = ARRAY_SIZE(response_cmds);
+#if 0
 	mdata.cmd_handler_data.cmds[CMD_UNSOL]     = unsol_cmds;
 	mdata.cmd_handler_data.cmds_len[CMD_UNSOL] = ARRAY_SIZE(unsol_cmds);
 #endif /* Will be added back once support is made available. */

@@ -107,6 +107,31 @@ static int modem_at(struct modem_context *mctx, struct modem_data *mdata)
  * need different handlers to handle different kinds of responses.
  * -------------------------------------------------------------------------- */
 
+/* Handler: OK */
+MODEM_CMD_DEFINE(on_cmd_ok)
+{
+	modem_cmd_handler_set_error(data, 0);
+	k_sem_give(&mdata.sem_response);
+	return 0;
+}
+
+/* Handler: ERROR */
+MODEM_CMD_DEFINE(on_cmd_error)
+{
+	modem_cmd_handler_set_error(data, -EIO);
+	k_sem_give(&mdata.sem_response);
+	return 0;
+}
+
+/* Handler: +CME Error: <err>[0] */
+MODEM_CMD_DEFINE(on_cmd_exterror)
+{
+	/* TODO: map extended error codes to values */
+	modem_cmd_handler_set_error(data, -EIO);
+	k_sem_give(&mdata.sem_response);
+	return 0;
+}
+
 /* Handler: +CSQ: <signal_power>[0], <qual>[1] */
 MODEM_CMD_DEFINE(on_cmd_atcmdinfo_rssi_csq)
 {
@@ -186,5 +211,11 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_imsi)
 	LOG_INF("IMSI: %s", log_strdup(mdata.mdm_imsi));
 	return 0;
 }
+
+static struct modem_cmd response_cmds[] = {
+	MODEM_CMD("OK", on_cmd_ok, 0U, ""),
+	MODEM_CMD("ERROR", on_cmd_error, 0U, ""),
+	MODEM_CMD("+CME ERROR: ", on_cmd_exterror, 1U, ""),
+};
 
 #endif /* #ifndef MODEM_HELPER_H */
