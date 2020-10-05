@@ -102,12 +102,17 @@ struct modem_data {
 
 	/* response semaphore */
 	struct k_sem sem_response;
+	struct k_sem sem_tx_ready;
 };
 
 /* Allocating static memory for various routines / buffers. */
 K_KERNEL_STACK_DEFINE(modem_rx_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_STACK_SIZE);
 K_KERNEL_STACK_DEFINE(modem_workq_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_WORKQ_STACK_SIZE);
 NET_BUF_POOL_DEFINE(mdm_recv_pool, MDM_RECV_MAX_BUF, MDM_RECV_BUF_SIZE, 0, NULL);
+
+#define EXIT_ON_ERROR(ret) \
+	if (ret < 0)           \
+		goto exit;
 
 /* Modem data structures. */
 struct k_thread                      modem_rx_thread;

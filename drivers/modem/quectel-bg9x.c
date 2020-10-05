@@ -41,6 +41,140 @@ static struct setup_cmd setup_cmds[] =
  * the internet.
  * -------------------------------------------------------------------------- */
 
+/* Func: send_socket_data
+ * Desc: This function will send "binary" data over the socket object. */
+static ssize_t send_socket_data(struct modem_socket *sock,
+								const struct sockaddr *dst_addr,
+								struct modem_cmd *handler_cmds,
+								size_t handler_cmds_len,
+								const char *buf, size_t buf_len,
+								k_timeout_t timeout)
+{
+	int      ret;
+	char     send_buf[32];
+	char     ctrlz = 0x1A;
+
+	/* Binary and ASCII mode allows sending MDM_MAX_DATA_LENGTH bytes to
+	 * the socket in one command */
+	if (buf_len > MDM_MAX_DATA_LENGTH)
+		buf_len = MDM_MAX_DATA_LENGTH;
+
+	/* Create a buffer with the correct params - As always, we are hardcoding
+	 * socket number 0 instead of using the sock_id. */
+	mdata.sock_written = buf_len;
+	snprintk(send_buf, sizeof(send_buf), "AT+QISEND=%d,%ld", 0, (long int) buf_len);
+
+	/* Setup the locks correctly. */
+	k_sem_take(&mdata.cmd_handler_data.sem_tx_lock, K_FOREVER);
+	k_sem_reset(&mdata.sem_tx_ready);
+
+	/* Send the Modem command. */
+	ret = modem_cmd_send_nolock(&mctx.iface, &mctx.cmd_handler,
+				    			NULL, 0U, send_buf, NULL, K_NO_WAIT);
+	EXIT_ON_ERROR(ret);
+
+	/* set command handlers */
+	ret = modem_cmd_handler_update_cmds(&mdata.cmd_handler_data,
+					    				handler_cmds, handler_cmds_len,
+										true);
+	EXIT_ON_ERROR(ret);
+
+	/* Wait for '>' */
+	ret = k_sem_take(&mdata.sem_tx_ready, K_MSEC(5000));
+	if (ret < 0)
+	{
+		/* Didn't get the data prompt sadly. Need to exit. */
+		LOG_DBG("Timeout waiting for tx");
+		goto exit;
+	}
+
+	/* Now that we have received the data prompt, write all data on the console.
+	 * Then send CTRL+Z. */
+	mctx.iface.write(&mctx.iface, buf, buf_len);
+	mctx.iface.write(&mctx.iface, &ctrlz, 1);
+
+	/* Wait for 'SEND OK' or 'SEND FAIL' */
+	k_sem_reset(&mdata.sem_response);
+	ret = k_sem_take(&mdata.sem_response, timeout);
+	if (ret < 0)
+	{
+		LOG_DBG("No send response");
+		goto exit;
+	}
+
+	ret = modem_cmd_handler_get_error(&mdata.cmd_handler_data);
+	if (ret != 0)
+		LOG_DBG("Failed to send data");
+
+exit:
+	/* unset handler commands and ignore any errors */
+	(void)modem_cmd_handler_update_cmds(&mdata.cmd_handler_data,
+					    NULL, 0U, false);
+	k_sem_give(&mdata.cmd_handler_data.sem_tx_lock);
+
+	if (ret < 0)
+		return ret;
+
+	/* Return the amount of data written on the socket. */
+	return mdata.sock_written;
+}
+
+/* Func: offload_sendto
+ * Desc: This function will send data on the socket object. */
+static ssize_t offload_sendto(void *obj, const void *buf, size_t len,
+			      	  	  	  int flags, const struct sockaddr *to,
+							  socklen_t tolen)
+{
+	int                 ret;
+	struct modem_socket *sock = (struct modem_socket *) obj;
+
+	/* Here's how sending data works,
+	 * -> We firstly send the "AT+QISEND" command on the given socket and
+	 *    specify the length of data to be transferred.
+	 * -> In response to "AT+QISEND" command, the modem may respond with a
+	 *    data prompt (>) or not respond at all. If it doesn't respond, we
+	 *    exit. If it does respond with a data prompt (>), we move forward.
+	 * -> We plainly write all data on the UART and terminate by sending a
+	 *    CTRL+Z. Once the modem receives CTRL+Z, it starts processing the
+	 *    data and will respond with either "SEND OK", "SEND FAIL" or "ERROR".
+	 *    Here we are registering handlers for the first two responses. We
+	 *    already have a handler for the "generic" error response. */
+	struct modem_cmd    cmd[] =
+	{
+		MODEM_CMD_DIRECT(">", on_cmd_tx_ready),
+		MODEM_CMD("SEND OK", on_cmd_send_ok,   0, ","),
+		MODEM_CMD("SEND FAIL", on_cmd_send_fail, 0, ","),
+	};
+
+	/* Ensure that valid parameters are passed. */
+	if (!buf || len == 0)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (!sock->is_connected && sock->ip_proto != IPPROTO_UDP)
+	{
+		errno = ENOTCONN;
+		return -1;
+	}
+
+	if (!to && sock->ip_proto == IPPROTO_UDP)
+		to = &sock->dst;
+
+	ret = send_socket_data(sock, to, cmd, ARRAY_SIZE(cmd), buf, len,
+			       	   	   MDM_CMD_TIMEOUT);
+	if (ret < 0)
+	{
+		errno = -ret;
+		return -1;
+	}
+
+	/* Data was written successfully. */
+	errno = 0;
+	return ret;
+}
+
 /* Func: offload_read
  * Desc: This function reads data from the given socket object. */
 static ssize_t offload_read(void *obj, void *buffer, size_t count)
@@ -56,11 +190,7 @@ static ssize_t offload_read(void *obj, void *buffer, size_t count)
  * Desc: This function writes data to the given socket object. */
 static ssize_t offload_write(void *obj, const void *buffer, size_t count)
 {
-#if 0
 	return offload_sendto(obj, buffer, count, 0, NULL, 0);
-#else
-	return 0;
-#endif
 }
 
 /* Func: offload_poll
@@ -218,12 +348,8 @@ static ssize_t offload_sendmsg(void *obj, const struct msghdr *msg, int flags)
 
 		while (len > 0)
 		{
-#if 0
 			rc = offload_sendto(obj, buf, len, flags,
 							    msg->msg_name, msg->msg_namelen);
-#else
-			rc = 0;
-#endif
 			if (rc < 0)
 			{
 				if (rc == -EAGAIN)
@@ -398,7 +524,7 @@ static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	},
 	.bind 		= NULL,
 	.connect 	= offload_connect,
-	.sendto 	= NULL,
+	.sendto 	= offload_sendto,
 	.recvfrom 	= NULL,
 	.listen 	= NULL,
 	.accept 	= NULL,
@@ -434,6 +560,7 @@ static int modem_init(const struct device *dev)
 	int ret; ARG_UNUSED(dev);
 
 	k_sem_init(&mdata.sem_response, 0, 1);
+	k_sem_init(&mdata.sem_tx_ready, 0, 1);
 	k_work_q_start(&modem_workq, modem_workq_stack,
 		       	   K_KERNEL_STACK_SIZEOF(modem_workq_stack),
 				   K_PRIO_COOP(7));

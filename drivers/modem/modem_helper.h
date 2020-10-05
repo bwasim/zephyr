@@ -212,6 +212,33 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_imsi)
 	return 0;
 }
 
+/* Handler: TX Ready */
+MODEM_CMD_DIRECT_DEFINE(on_cmd_tx_ready)
+{
+	/* We are ready to receive data. */
+	k_sem_give(&mdata.sem_tx_ready);
+	return len;
+}
+
+/* Handler: SEND OK */
+MODEM_CMD_DEFINE(on_cmd_send_ok)
+{
+	modem_cmd_handler_set_error(data, 0);
+	k_sem_give(&mdata.sem_response);
+
+	return 0;
+}
+
+/* Handler: SEND FAIL */
+MODEM_CMD_DEFINE(on_cmd_send_fail)
+{
+	mdata.sock_written = 0;
+	modem_cmd_handler_set_error(data, -EIO);
+	k_sem_give(&mdata.sem_response);
+
+	return 0;
+}
+
 static struct modem_cmd response_cmds[] = {
 	MODEM_CMD("OK", on_cmd_ok, 0U, ""),
 	MODEM_CMD("ERROR", on_cmd_error, 0U, ""),
