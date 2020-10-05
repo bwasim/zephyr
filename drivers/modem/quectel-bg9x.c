@@ -175,15 +175,103 @@ static ssize_t offload_sendto(void *obj, const void *buf, size_t len,
 	return ret;
 }
 
+/* Func: offload_recvfrom
+ * Desc: This function will receive data on the socket object. */
+static ssize_t offload_recvfrom(void *obj, void *buf, size_t len,
+								int flags, struct sockaddr *from,
+								socklen_t *fromlen)
+{
+	struct modem_socket *sock = (struct modem_socket *)obj;
+	int ret, next_packet_size;
+	char   sendbuf[32];
+	struct socket_read_data sock_data;
+
+	/* Modem command to read the data. */
+	struct modem_cmd cmd[] =
+	{
+		MODEM_CMD("+QIRD: ", on_cmd_sockread, 1U, ","),
+	};
+
+
+	if (!buf || len == 0)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (flags & ZSOCK_MSG_PEEK)
+	{
+		errno = ENOTSUP;
+		return -1;
+	}
+
+	next_packet_size = modem_socket_next_packet_size(&mdata.socket_config,
+							 sock);
+	if (!next_packet_size)
+	{
+		if (flags & ZSOCK_MSG_DONTWAIT)
+		{
+			errno = EAGAIN;
+			return -1;
+		}
+
+		if (!sock->is_connected && sock->ip_proto != IPPROTO_UDP)
+		{
+			errno = 0;
+			return 0;
+		}
+
+		modem_socket_wait_data(&mdata.socket_config, sock);
+		next_packet_size =
+				modem_socket_next_packet_size(&mdata.socket_config, sock);
+	}
+
+	if (next_packet_size > MDM_MAX_DATA_LENGTH)
+		next_packet_size = MDM_MAX_DATA_LENGTH;
+
+	snprintk(sendbuf, sizeof(sendbuf), "AT+QIRD=%d,%d", /* sock->id */ 0,
+			len < next_packet_size ? len : next_packet_size);
+
+	/* Socket read settings */
+	(void) memset(&sock_data, 0, sizeof(sock_data));
+	sock_data.recv_buf     = buf;
+	sock_data.recv_buf_len = len;
+	sock_data.recv_addr    = from;
+	sock->data             = &sock_data;
+
+	/* Tell the modem to give us data (AT+QIRD). */
+	ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+			     cmd, ARRAY_SIZE(cmd), sendbuf, &mdata.sem_response,
+			     MDM_CMD_TIMEOUT);
+	if (ret < 0)
+	{
+		errno = -ret;
+		ret = -1;
+		goto exit;
+	}
+
+	/* HACK: use dst address as from */
+	if (from && fromlen)
+	{
+		*fromlen = sizeof(sock->dst);
+		memcpy(from, &sock->dst, *fromlen);
+	}
+
+	/* return length of received data */
+	errno = 0;
+	ret = sock_data.recv_read_len;
+
+exit:
+	/* clear socket data */
+	sock->data = NULL;
+	return ret;
+}
+
 /* Func: offload_read
  * Desc: This function reads data from the given socket object. */
 static ssize_t offload_read(void *obj, void *buffer, size_t count)
 {
-#if 0
 	return offload_recvfrom(obj, buffer, count, 0, NULL, 0);
-#else
-	return 0;
-#endif
 }
 
 /* Func: offload_write
@@ -525,7 +613,7 @@ static const struct socket_op_vtable offload_socket_fd_op_vtable = {
 	.bind 		= NULL,
 	.connect 	= offload_connect,
 	.sendto 	= offload_sendto,
-	.recvfrom 	= NULL,
+	.recvfrom 	= offload_recvfrom,
 	.listen 	= NULL,
 	.accept 	= NULL,
 	.sendmsg    = offload_sendmsg,

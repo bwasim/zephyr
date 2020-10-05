@@ -105,6 +105,15 @@ struct modem_data {
 	struct k_sem sem_tx_ready;
 };
 
+/* Socket read callback data */
+struct socket_read_data
+{
+	char             *recv_buf;
+	size_t           recv_buf_len;
+	struct sockaddr  *recv_addr;
+	uint16_t         recv_read_len;
+};
+
 /* Allocating static memory for various routines / buffers. */
 K_KERNEL_STACK_DEFINE(modem_rx_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_STACK_SIZE);
 K_KERNEL_STACK_DEFINE(modem_workq_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_WORKQ_STACK_SIZE);

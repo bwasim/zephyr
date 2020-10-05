@@ -100,6 +100,89 @@ static int modem_at(struct modem_context *mctx, struct modem_data *mdata)
 	return ret;
 }
 
+/* Func: on_cmd_sockread_common
+ * Desc: Function to successfully read data from the modem on a given socket. */
+static int on_cmd_sockread_common(int socket_id,
+				  struct modem_cmd_handler_data *data,
+				  int socket_data_length, uint16_t len)
+{
+	struct modem_socket      *sock = NULL;
+	struct socket_read_data  *sock_data;
+	int                      ret;
+
+	if (!len)
+	{
+		LOG_ERR("Invalid length, Aborting!");
+		return -EAGAIN;
+	}
+
+	/*
+	 * make sure we still have buf data and next char in the buffer is a
+	 * quote.
+	 */
+	if (!data->rx_buf || *data->rx_buf->data != '\"') {
+		LOG_ERR("Incorrect format! Ignoring data!");
+		return -EINVAL;
+	}
+
+	/* No data available on the socket. */
+	if (socket_data_length <= 0)
+	{
+		LOG_ERR("Length problem (%d).  Aborting!", socket_data_length);
+		return -EAGAIN;
+	}
+
+	/* check to make sure we have all of the data (minus the initial 0x0A) */
+	if ((net_buf_frags_len(data->rx_buf) - 1) < socket_data_length)
+	{
+		LOG_DBG("Not enough data -- wait!");
+		return -EAGAIN;
+	}
+
+	/* Skip "0x0A" */
+	len --;
+	net_buf_pull_u8(data->rx_buf);
+	if (!data->rx_buf->len)
+	{
+		data->rx_buf = net_buf_frag_del(NULL, data->rx_buf);
+	}
+
+	sock = modem_socket_from_id(&mdata.socket_config, socket_id);
+	if (!sock)
+	{
+		LOG_ERR("Socket not found! (%d)", socket_id);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	sock_data = (struct socket_read_data *)sock->data;
+	if (!sock_data)
+	{
+		LOG_ERR("Socket data not found! Skip handling (%d)", socket_id);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	ret = net_buf_linearize(sock_data->recv_buf, sock_data->recv_buf_len,
+				data->rx_buf, 0, (uint16_t)socket_data_length);
+	data->rx_buf = net_buf_skip(data->rx_buf, ret);
+	sock_data->recv_read_len = ret;
+	if (ret != socket_data_length)
+	{
+		LOG_ERR("Total copied data is different then received data!"
+			" copied:%d vs. received:%d", ret, socket_data_length);
+		ret = -EINVAL;
+	}
+
+exit:
+	/* remove packet from list (ignore errors) */
+	(void)modem_socket_packet_size_update(&mdata.socket_config, sock,
+					      -socket_data_length);
+
+	/* don't give back semaphore -- OK to follow */
+	return ret;
+}
+
 /* --------------------------------------------------------------------------
  * Everything beyond this point are implementation of Modem command handlers.
  * Whenever we send a command to the modem (via modem_cmd_send), the modem has
@@ -237,6 +320,12 @@ MODEM_CMD_DEFINE(on_cmd_send_fail)
 	k_sem_give(&mdata.sem_response);
 
 	return 0;
+}
+
+/* Handler: Read data */
+MODEM_CMD_DEFINE(on_cmd_sockread)
+{
+	return on_cmd_sockread_common(0, data, ATOI(argv[0], 0, "length"), len);
 }
 
 static struct modem_cmd response_cmds[] = {
