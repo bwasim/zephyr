@@ -1,6 +1,6 @@
-# quectel BG9x driver options
+# Quectel BG9x driver options
 
-# Copyright (c) 2020 Bilal Wasim
+# Copyright (c) 2020 Analog Life LLC
 # SPDX-License-Identifier: Apache-2.0
 
 config MODEM_QUECTEL_BG9X
@@ -39,6 +39,22 @@ config MODEM_QUECTEL_BG9X_APN
 	default "hologram"
 	help
 	  This setting is used to set the APN name for the network connection
+	  context.  This value is specific to the network provider and may
+	  need to be changed.
+
+config MODEM_QUECTEL_BG9X_USERNAME
+	string "Username for establishing network connection"
+	default ""
+	help
+	  This setting is used to set the User name for the network connection
+	  context.  This value is specific to the network provider and may
+	  need to be changed.
+
+config MODEM_QUECTEL_BG9X_PASSWORD
+	string "Password for establishing network connection"
+	default ""
+	help
+	  This setting is used to set the Password for the network connection
 	  context.  This value is specific to the network provider and may
 	  need to be changed.
 

@@ -295,6 +295,19 @@ MODEM_CMD_DEFINE(on_cmd_atcmdinfo_imsi)
 	return 0;
 }
 
+/* Handler: <ICCID> */
+MODEM_CMD_DEFINE(on_cmd_atcmdinfo_iccid)
+{
+	size_t out_len;
+
+	out_len = net_buf_linearize(mdata.mdm_iccid, sizeof(mdata.mdm_iccid) - 1,
+				    data->rx_buf, 0, len);
+	mdata.mdm_iccid[out_len] = '\0';
+	LOG_INF("ICCID: %s", log_strdup(mdata.mdm_iccid));
+
+	return 0;
+}
+
 /* Handler: TX Ready */
 MODEM_CMD_DIRECT_DEFINE(on_cmd_tx_ready)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Bilal Wasim
+ * Copyright (c) 2020 Analog Life LLC
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,36 +25,33 @@
 #include "modem_iface_uart.h"
 
 #define MDM_UART_DEV_NAME		  DT_INST_BUS_LABEL(0)
-#define MDM_POWER_ENABLE		  1
-#define MDM_POWER_DISABLE		  0
-#define MDM_RESET_NOT_ASSERTED	  1
-#define MDM_RESET_ASSERTED		  0
 #define MDM_CMD_TIMEOUT			  K_SECONDS(10)
-#define MDM_DNS_TIMEOUT			  K_SECONDS(70)
-#define MDM_CMD_CONN_TIMEOUT	  K_SECONDS(120)
-#define MDM_REGISTRATION_TIMEOUT  K_SECONDS(180)
-#define MDM_PROMPT_CMD_DELAY	  K_MSEC(75)
-#define MDM_SENDMSG_SLEEP         K_MSEC(1)
+#define MDM_CMD_CONN_TIMEOUT		  K_SECONDS(120)
+#define MDM_REGISTRATION_TIMEOUT	  K_SECONDS(180)
+#define MDM_SENDMSG_SLEEP		  K_MSEC(1)
 #define MDM_MAX_DATA_LENGTH		  1024
 #define MDM_RECV_MAX_BUF		  30
-#define MDM_RECV_BUF_SIZE		  128
+#define MDM_RECV_BUF_SIZE		  1024
 #define MDM_MAX_SOCKETS			  5
 #define MDM_BASE_SOCKET_NUM		  0
-#define MDM_NETWORK_RETRY_COUNT	  3
-#define MDM_WAIT_FOR_RSSI_COUNT	  10
-#define MDM_WAIT_FOR_RSSI_DELAY	  K_SECONDS(2)
+#define MDM_NETWORK_RETRY_COUNT		  10
+#define MDM_WAIT_FOR_RSSI_COUNT		  10
+#define MDM_WAIT_FOR_RSSI_DELAY		  K_SECONDS(2)
 #define BUF_ALLOC_TIMEOUT		  K_SECONDS(1)
 
 /* Default lengths of certain things. */
-#define MDM_MANUFACTURER_LENGTH	  10
+#define MDM_MANUFACTURER_LENGTH		  10
 #define MDM_MODEL_LENGTH		  16
 #define MDM_REVISION_LENGTH		  64
 #define MDM_IMEI_LENGTH			  16
 #define MDM_IMSI_LENGTH			  16
+#define MDM_ICCID_LENGTH		  32
 #define MDM_APN_LENGTH			  32
 #define RSSI_TIMEOUT_SECS		  30
 
-#define MDM_APN                   CONFIG_MODEM_QUECTEL_BG9X_APN
+#define MDM_APN				  CONFIG_MODEM_QUECTEL_BG9X_APN
+#define MDM_USERNAME			  CONFIG_MODEM_QUECTEL_BG9X_USERNAME
+#define MDM_PASSWORD			  CONFIG_MODEM_QUECTEL_BG9X_PASSWORD
 
 /* Modem ATOI routine. */
 #define ATOI(s_, value_, desc_)   modem_atoi(s_, value_, desc_, __func__)
@@ -63,6 +60,9 @@
 enum mdm_control_pins {
 	MDM_POWER = 0,
 	MDM_RESET,
+#if DT_INST_NODE_HAS_PROP(0, mdm_dtr_gpios)
+	MDM_DTR,
+#endif
 };
 
 /* driver data */
@@ -92,56 +92,99 @@ struct modem_data {
 	char mdm_model[MDM_MODEL_LENGTH];
 	char mdm_revision[MDM_REVISION_LENGTH];
 	char mdm_imei[MDM_IMEI_LENGTH];
+#if defined(CONFIG_MODEM_SIM_NUMBERS)
 	char mdm_imsi[MDM_IMSI_LENGTH];
-
-	/* modem state */
-	int ev_creg;
+	char mdm_iccid[MDM_ICCID_LENGTH];
+#endif /* #if defined(CONFIG_MODEM_SIM_NUMBERS) */
 
 	/* bytes written to socket in last transaction */
 	int sock_written;
 
-	/* response semaphore */
+	/* Socket from which we are currently reading data. */
+	int sock_fd;
+
+	/* Semaphore(s) */
 	struct k_sem sem_response;
 	struct k_sem sem_tx_ready;
+	struct k_sem sem_sock_conn;
 };
 
 /* Socket read callback data */
-struct socket_read_data
-{
+struct socket_read_data {
 	char             *recv_buf;
 	size_t           recv_buf_len;
 	struct sockaddr  *recv_addr;
 	uint16_t         recv_read_len;
 };
 
-/* Allocating static memory for various routines / buffers. */
-K_KERNEL_STACK_DEFINE(modem_rx_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_STACK_SIZE);
-K_KERNEL_STACK_DEFINE(modem_workq_stack, CONFIG_MODEM_QUECTEL_BG9X_RX_WORKQ_STACK_SIZE);
-NET_BUF_POOL_DEFINE(mdm_recv_pool, MDM_RECV_MAX_BUF, MDM_RECV_BUF_SIZE, 0, NULL);
-
-#define EXIT_ON_ERROR(ret) \
-	if (ret < 0)           \
-		goto exit;
-
-/* Modem data structures. */
-struct k_thread                      modem_rx_thread;
-static struct k_work_q               modem_workq;
-static struct modem_data             mdata;
-static struct modem_context          mctx;
-static const struct socket_op_vtable offload_socket_fd_op_vtable;
-
-/* Modem pins - Power & Reset. */
-static struct modem_pin modem_pins[] =
-{
+/* Modem pins - Power, Reset & others. */
+static struct modem_pin modem_pins[] = {
 	/* MDM_POWER */
 	MODEM_PIN(DT_INST_GPIO_LABEL(0, mdm_power_gpios),
-			  DT_INST_GPIO_PIN(0, mdm_power_gpios),
-		      DT_INST_GPIO_FLAGS(0, mdm_power_gpios) | GPIO_OUTPUT),
+		  DT_INST_GPIO_PIN(0, mdm_power_gpios),
+		  DT_INST_GPIO_FLAGS(0, mdm_power_gpios) | GPIO_OUTPUT_LOW),
 
 	/* MDM_RESET */
 	MODEM_PIN(DT_INST_GPIO_LABEL(0, mdm_reset_gpios),
-			  DT_INST_GPIO_PIN(0, mdm_reset_gpios),
-			  DT_INST_GPIO_FLAGS(0, mdm_reset_gpios) | GPIO_OUTPUT),
+		  DT_INST_GPIO_PIN(0, mdm_reset_gpios),
+		  DT_INST_GPIO_FLAGS(0, mdm_reset_gpios) | GPIO_OUTPUT_LOW),
+
+#if DT_INST_NODE_HAS_PROP(0, mdm_dtr_gpios)
+	/* MDM_DTR */
+	MODEM_PIN(DT_INST_GPIO_LABEL(0, mdm_dtr_gpios),
+		  DT_INST_GPIO_PIN(0, mdm_dtr_gpios),
+		  DT_INST_GPIO_FLAGS(0, mdm_dtr_gpios) | GPIO_OUTPUT_LOW),
+#endif
 };
+
+static inline int digits(int n)
+{
+	int count = 0;
+
+	while (n != 0) {
+		n /= 10;
+		++count;
+	}
+
+	return count;
+}
+
+static inline int find_len(char *data)
+{
+	char buf[10] = {0};
+	int  i;
+
+	for (i = 0; i < 10; i++) {
+		if (data[i] == '\r')
+			break;
+
+		buf[i] = data[i];
+	}
+
+	return atoi(buf);
+}
+
+static inline uint32_t hash32(char *str, int len)
+{
+#define HASH_MULTIPLIER		37
+
+	uint32_t h = 0;
+	int i;
+
+	for (i = 0; i < len; ++i) {
+		h = (h * HASH_MULTIPLIER) + str[i];
+	}
+
+	return h;
+}
+
+static int net_offload_dummy_get(sa_family_t family, enum net_sock_type type,
+				 enum net_ip_protocol ip_proto,
+				 struct net_context **context)
+{
+
+	LOG_ERR("CONFIG_NET_SOCKETS_OFFLOAD must be enabled for this driver");
+	return -ENOTSUP;
+}
 
 #endif /* #ifndef QUECTEL_BG9X_H */
