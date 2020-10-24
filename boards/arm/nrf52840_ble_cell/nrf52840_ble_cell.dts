@@ -18,6 +18,18 @@
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
 	};
+	
+	leds {
+		compatible = "gpio-leds";
+		led0: led_0 {
+			gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
+			label = "LED 1";
+		};
+		led1: led_1 {
+			gpios = <&gpio1 2 GPIO_ACTIVE_LOW>;
+			label = "LED 2";
+		};
+	};
 };
 
 &gpiote {
