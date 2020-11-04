@@ -35,15 +35,18 @@ void main(void)
 
 	dev = device_get_binding(LED0);
 	if (dev == NULL) {
+		printk("%s: device_get_binding failed.. \r\n", __func__);
 		return;
 	}
 
 	ret = gpio_pin_configure(dev, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
 	if (ret < 0) {
+		printk("%s: gpio_pin_configure failed.. \r\n", __func__);
 		return;
 	}
 
 	while (1) {
+		printk("%s: Setting pin to %d.. \r\n", __func__, (int) led_is_on);
 		gpio_pin_set(dev, PIN, (int)led_is_on);
 		led_is_on = !led_is_on;
 		k_msleep(SLEEP_TIME_MS);

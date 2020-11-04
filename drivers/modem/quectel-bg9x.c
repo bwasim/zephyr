@@ -793,6 +793,102 @@ static ssize_t offload_sendmsg(void *obj, const struct msghdr *msg, int flags)
 	return (ssize_t) sent;
 }
 
+typedef struct gps_data_t {
+    float utc;      /* hhmmss.sss */
+    float lat;      /* latitude. (-)dd.ddddd */
+    float lon;      /* longitude. (-)dd.ddddd */
+    float hdop;     /*  Horizontal precision: 0.5-99.9 */
+    float altitude; /* altitude of antenna from sea level (meters) */
+    int fix;        /* GNSS position mode 2=2D, 3=3D */
+    float cog;      /* Course Over Ground ddd.mm */
+    float spkm;     /* Speed over ground (Km/h) xxxx.x */
+    float spkn;     /* Speed over ground (knots) xxxx.x */
+    char date[7];   /* data: ddmmyy */
+    int nsat;       /* number of satellites 0-12 */
+} gps_data;
+
+/* Func: start_gps
+ * Desc: This function will start the modem GPS module. */
+int start_gps(void)
+{
+	int	ret;
+
+	/* Tell the modem to close the socket. */
+	ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+					 	 NULL, 0U, "AT+QGPS=1",
+						 &mdata.sem_response, MDM_CMD_TIMEOUT);
+	if (ret < 0)
+	{
+		LOG_ERR("%s ret:%d", log_strdup(buf), ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+MODEM_CMD_DEFINE(on_cmd_gps_loc)
+{
+	int i;
+
+	for (i = 0; i < argc; i ++)
+	{
+		printk("%s \r\n", argv[i]);
+	}
+
+	return 0;
+}
+
+int get_gps_loc(void)
+{
+	int	 ret;
+	char *buf = "AT+QGPSLOC=2";
+
+	struct modem_cmd cmd[] = {
+		MODEM_CMD("+QGPSLOC: ", on_cmd_gps_loc, 11, ","),
+	};
+
+	/* Set command handlers */
+	ret = modem_cmd_handler_update_cmds(&mdata.cmd_handler_data,
+										cmd, sizeof(cmd),
+										true);
+	if (ret < 0)
+	{
+		LOG_ERR("Failed to update command handlers!! ret:%d", ret);
+		return ret;
+	}
+
+	/* Tell the modem to close the socket. */
+	ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+					 	 NULL, 0U, buf,
+						 &mdata.sem_response, MDM_CMD_TIMEOUT);
+	if (ret < 0)
+	{
+		LOG_ERR("%s ret:%d", log_strdup(buf), ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+/* Func: stop_gps
+ * Desc: This function will stop the modem GPS module. */
+int stop_gps(void)
+{
+	int	ret;
+
+	/* Tell the modem to close the socket. */
+	ret = modem_cmd_send(&mctx.iface, &mctx.cmd_handler,
+					 	 NULL, 0U, "AT+QGPSSEND",
+						 &mdata.sem_response, MDM_CMD_TIMEOUT);
+	if (ret < 0)
+	{
+		LOG_ERR("%s ret:%d", log_strdup(buf), ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 /* Func: modem_rx
  * Desc: Thread to process all messages received from the Modem.
  */

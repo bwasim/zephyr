@@ -33,8 +33,9 @@
 	
 	/* These aliases are provided for compatibility with samples */
 	aliases {
-		led0 = &led1;
+		/* led0 = &led1; */
 		led1 = &led2;
+		pwm-led0 = &led1;
 	};
 };
 
