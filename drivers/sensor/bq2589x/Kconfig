@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright (c) 2020 Analog Life LLC
+
+config BQ2589X
+	bool "TI BQ2589x Battery Driver"
+	depends on I2C
+	help
+	  Battery Driver for TI BQ2589x.
