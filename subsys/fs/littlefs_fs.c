@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <init.h>
 #include <fs/fs.h>
+#include <fs/fs_sys.h>
 
 #define LFS_LOG_REGISTER
 #include <lfs_util.h>
@@ -536,7 +537,7 @@ static lfs_size_t get_block_size(const struct flash_area *fa)
 		.area = fa,
 		.max_size = 0,
 	};
-	struct device *dev = flash_area_get_device(fa);
+	const struct device *dev = flash_area_get_device(fa);
 
 	flash_page_foreach(dev, get_page_cb, &ctx);
 
@@ -548,7 +549,7 @@ static int littlefs_mount(struct fs_mount_t *mountp)
 	int ret;
 	struct fs_littlefs *fs = mountp->fs_data;
 	unsigned int area_id = (uintptr_t)mountp->storage_dev;
-	struct device *dev;
+	const struct device *dev;
 
 	LOG_INF("LittleFS version %u.%u, disk version %u.%u",
 		LFS_VERSION_MAJOR, LFS_VERSION_MINOR,
@@ -676,14 +677,22 @@ static int littlefs_mount(struct fs_mount_t *mountp)
 
 	/* Mount it, formatting if needed. */
 	ret = lfs_mount(&fs->lfs, &fs->cfg);
-	if (ret < 0) {
+	if (ret < 0 &&
+	    (mountp->flags & FS_MOUNT_FLAG_NO_FORMAT) == 0) {
 		LOG_WRN("can't mount (LFS %d); formatting", ret);
-		ret = lfs_format(&fs->lfs, &fs->cfg);
-		if (ret < 0) {
-			LOG_ERR("format failed (LFS %d)", ret);
-			ret = lfs_to_errno(ret);
+		if ((mountp->flags & FS_MOUNT_FLAG_READ_ONLY) == 0) {
+			ret = lfs_format(&fs->lfs, &fs->cfg);
+			if (ret < 0) {
+				LOG_ERR("format failed (LFS %d)", ret);
+				ret = lfs_to_errno(ret);
+				goto out;
+			}
+		} else {
+			LOG_ERR("can not format read-only system");
+			ret = -EROFS;
 			goto out;
 		}
+
 		ret = lfs_mount(&fs->lfs, &fs->cfg);
 		if (ret < 0) {
 			LOG_ERR("remount after format failed (LFS %d)", ret);
@@ -722,7 +731,7 @@ static int littlefs_unmount(struct fs_mount_t *mountp)
 }
 
 /* File system interface */
-static struct fs_file_system_t littlefs_fs = {
+static const struct fs_file_system_t littlefs_fs = {
 	.open = littlefs_open,
 	.close = littlefs_close,
 	.read = littlefs_read,
@@ -743,7 +752,7 @@ static struct fs_file_system_t littlefs_fs = {
 	.statvfs = littlefs_statvfs,
 };
 
-static int littlefs_init(struct device *dev)
+static int littlefs_init(const struct device *dev)
 {
 	ARG_UNUSED(dev);
 	return fs_register(FS_LITTLEFS, &littlefs_fs);

@@ -24,19 +24,19 @@ static const clock_name_t lpspi_clocks[] = {
 };
 #endif
 
-static int mcux_ccm_on(struct device *dev,
+static int mcux_ccm_on(const struct device *dev,
 			      clock_control_subsys_t sub_system)
 {
 	return 0;
 }
 
-static int mcux_ccm_off(struct device *dev,
+static int mcux_ccm_off(const struct device *dev,
 			       clock_control_subsys_t sub_system)
 {
 	return 0;
 }
 
-static int mcux_ccm_get_subsys_rate(struct device *dev,
+static int mcux_ccm_get_subsys_rate(const struct device *dev,
 				    clock_control_subsys_t sub_system,
 				    uint32_t *rate)
 {
@@ -110,12 +110,30 @@ static int mcux_ccm_get_subsys_rate(struct device *dev,
 				10;
 		break;
 #endif
+
+#ifdef CONFIG_CAN_MCUX_FLEXCAN
+	case IMX_CCM_CAN_CLK:
+	{
+		uint32_t can_mux = CLOCK_GetMux(kCLOCK_CanMux);
+
+		if (can_mux == 0) {
+			*rate = CLOCK_GetPllFreq(kCLOCK_PllUsb1) / 8
+				/ (CLOCK_GetDiv(kCLOCK_CanDiv) + 1);
+		} else if  (can_mux == 1) {
+			*rate = CLOCK_GetOscFreq()
+				/ (CLOCK_GetDiv(kCLOCK_CanDiv) + 1);
+		} else {
+			*rate = CLOCK_GetPllFreq(kCLOCK_PllUsb1) / 6
+				/ (CLOCK_GetDiv(kCLOCK_CanDiv) + 1);
+		}
+	} break;
+#endif
 	}
 
 	return 0;
 }
 
-static int mcux_ccm_init(struct device *dev)
+static int mcux_ccm_init(const struct device *dev)
 {
 	return 0;
 }

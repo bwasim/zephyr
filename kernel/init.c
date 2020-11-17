@@ -247,6 +247,10 @@ static void bg_thread_main(void *unused1, void *unused2, void *unused3)
 
 	z_init_static_threads();
 
+#ifdef KERNEL_COHERENCE
+	__ASSERT_NO_MSG(arch_mem_coherent(_kernel));
+#endif
+
 #ifdef CONFIG_SMP
 	z_smp_init();
 	z_sys_init_run_level(_SYS_INIT_LEVEL_SMP);
@@ -294,8 +298,9 @@ static void init_idle_thread(int i)
 #endif /* CONFIG_THREAD_NAME */
 
 	z_setup_new_thread(thread, stack,
-			  CONFIG_IDLE_STACK_SIZE, idle, NULL, NULL, NULL,
-			  K_LOWEST_THREAD_PRIO, K_ESSENTIAL, tname);
+			  CONFIG_IDLE_STACK_SIZE, idle, &_kernel.cpus[i],
+			  NULL, NULL, K_LOWEST_THREAD_PRIO, K_ESSENTIAL,
+			  tname);
 	z_mark_thread_as_started(thread);
 
 #ifdef CONFIG_SMP
@@ -380,7 +385,7 @@ void z_early_boot_rand_get(uint8_t *buf, size_t length)
 {
 	int n = sizeof(uint32_t);
 #ifdef CONFIG_ENTROPY_HAS_DRIVER
-	struct device *entropy = device_get_binding(DT_CHOSEN_ZEPHYR_ENTROPY_LABEL);
+	const struct device *entropy = device_get_binding(DT_CHOSEN_ZEPHYR_ENTROPY_LABEL);
 	int rc;
 
 	if (entropy == NULL) {
@@ -474,6 +479,11 @@ FUNC_NORETURN void z_cstart(void)
 	__stack_chk_guard = stack_guard;
 	__stack_chk_guard <<= 8;
 #endif	/* CONFIG_STACK_CANARIES */
+
+#ifdef CONFIG_THREAD_RUNTIME_STATS_USE_TIMING_FUNCTIONS
+	timing_init();
+	timing_start();
+#endif
 
 #ifdef CONFIG_MULTITHREADING
 	switch_to_main_thread(prepare_multithreading());

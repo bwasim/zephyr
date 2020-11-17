@@ -143,6 +143,9 @@ enum {
 	/** Periodic advertising is attempting sync sync */
 	BT_PER_ADV_SYNC_SYNCING,
 
+	/** Periodic advertising is attempting sync sync */
+	BT_PER_ADV_SYNC_RECV_DISABLED,
+
 	BT_PER_ADV_SYNC_NUM_FLAGS,
 };
 
@@ -167,9 +170,6 @@ struct bt_le_per_adv_sync {
 
 	/** Flags */
 	ATOMIC_DEFINE(flags, BT_PER_ADV_SYNC_NUM_FLAGS);
-
-	/** Callbacks */
-	const struct bt_le_per_adv_sync_cb *cb;
 };
 
 struct bt_dev_le {
@@ -180,8 +180,14 @@ struct bt_dev_le {
 
 #if defined(CONFIG_BT_CONN)
 	/* Controller buffer information */
-	uint16_t			mtu;
+	uint16_t		mtu;
 	struct k_sem		pkts;
+	uint16_t		acl_mtu;
+	struct k_sem		acl_pkts;
+#if defined(CONFIG_BT_ISO)
+	uint16_t		iso_mtu;
+	struct k_sem		iso_pkts;
+#endif /* CONFIG_BT_ISO */
 #endif /* CONFIG_BT_CONN */
 
 #if defined(CONFIG_BT_SMP)

@@ -227,7 +227,7 @@ static void dump_bytes(const struct jesd216_param_header *php,
 
 void main(void)
 {
-	struct device *dev = device_get_binding(FLASH_DEVICE);
+	const struct device *dev = device_get_binding(FLASH_DEVICE);
 
 	if (!dev) {
 		printf("%s: device not found\n", FLASH_DEVICE);
@@ -241,6 +241,13 @@ void main(void)
 	} u;
 	const struct jesd216_sfdp_header *hp = &u.sfdp;
 	int rc = flash_sfdp_read(dev, 0, u.raw, sizeof(u.raw));
+
+	if (rc != 0) {
+		printf("Read SFDP not supported: device not JESD216-compliant "
+		       "(err %d)\n", rc);
+		return;
+	}
+
 	uint32_t magic = jesd216_sfdp_magic(hp);
 
 	if (magic != JESD216_SFDP_MAGIC) {

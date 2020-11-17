@@ -12,18 +12,40 @@ from re import fullmatch, escape
 
 from runners.core import ZephyrBinaryRunner, RunnerCaps
 
+try:
+    from intelhex import IntelHex
+except ImportError:
+    IntelHex = None
+
+# Helper function for inspecting hex files.
+# has_region returns True if hex file has any contents in a specific region
+# region_filter is a callable that takes an address as argument and
+# returns True if that address is in the region in question
+def has_region(regions, hex_file):
+    if IntelHex is None:
+        raise RuntimeError('one or more Python dependencies were missing; '
+                           "see the getting started guide for details on "
+                           "how to fix")
+
+    try:
+        ih = IntelHex(hex_file)
+        return any((len(ih[rs:re]) > 0) for (rs, re) in regions)
+    except FileNotFoundError:
+        return False
+
 
 class NrfJprogBinaryRunner(ZephyrBinaryRunner):
     '''Runner front-end for nrfjprog.'''
 
     def __init__(self, cfg, family, softreset, snr, erase=False,
-        tool_opt=[]):
+        tool_opt=[], force=False):
         super().__init__(cfg)
         self.hex_ = cfg.hex_file
         self.family = family
         self.softreset = softreset
         self.snr = snr
         self.erase = erase
+        self.force = force
 
         self.tool_opt = []
         for opts in [shlex.split(opt) for opt in tool_opt]:
@@ -51,15 +73,19 @@ class NrfJprogBinaryRunner(ZephyrBinaryRunner):
         parser.add_argument('--tool-opt', default=[], action='append',
                             help='''Additional options for nrfjprog,
                             e.g. "--recover"''')
+        parser.add_argument('--force', required=False,
+                            action='store_true',
+                            help='Flash even if the result cannot be guaranteed.')
 
     @classmethod
     def do_create(cls, cfg, args):
         return NrfJprogBinaryRunner(cfg, args.nrf_family, args.softreset,
                                     args.snr, erase=args.erase,
-                                    tool_opt=args.tool_opt)
+                                    tool_opt=args.tool_opt, force=args.force)
 
     def ensure_snr(self):
-        self.snr = self.get_board_snr(self.snr or "*")
+        if not self.snr or "*" in self.snr:
+            self.snr = self.get_board_snr(self.snr or "*")
 
     def get_boards(self):
         snrs = self.check_output(['nrfjprog', '--ids'])
@@ -111,7 +137,10 @@ class NrfJprogBinaryRunner(ZephyrBinaryRunner):
         p = 'Please select one with desired serial number (1-{}): '.format(
                 len(snrs))
         while True:
-            value = input(p)
+            try:
+                value = input(p)
+            except EOFError:
+                sys.exit(0)
             try:
                 value = int(value)
             except ValueError:
@@ -147,10 +176,25 @@ class NrfJprogBinaryRunner(ZephyrBinaryRunner):
                 program_cmd
             ])
         else:
-            if self.family == 'NRF52':
+            if self.family == 'NRF51':
+                commands.append(program_cmd + ['--sectorerase'])
+            elif self.family == 'NRF52':
                 commands.append(program_cmd + ['--sectoranduicrerase'])
             else:
-                commands.append(program_cmd + ['--sectorerase'])
+                uicr = {
+                    'NRF53': ((0x00FF8000, 0x00FF8800),
+                              (0x01FF8000, 0x01FF8800)),
+                    'NRF91': ((0x00FF8000, 0x00FF8800),),
+                }[self.family]
+
+                if not self.force and has_region(uicr, self.hex_):
+                    # Hex file has UICR contents.
+                    raise RuntimeError(
+                        'The hex file contains data placed in the UICR, which '
+                        'needs a full erase before reprogramming. Run west '
+                        'flash again with --force or --erase.')
+                else:
+                    commands.append(program_cmd + ['--sectorerase'])
 
         if self.family == 'NRF52' and not self.softreset:
             commands.extend([

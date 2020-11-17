@@ -72,7 +72,9 @@ struct i2s_stm32_cfg {
 	SPI_TypeDef *i2s;
 	struct stm32_pclken pclken;
 	uint32_t i2s_clk_sel;
-	void (*irq_config)(struct device *dev);
+	const struct soc_gpio_pinctrl *pinctrl_list;
+	size_t pinctrl_list_size;
+	void (*irq_config)(const struct device *dev);
 };
 
 struct stream {
@@ -92,15 +94,15 @@ struct stream {
 	void *mem_block;
 	bool last_block;
 	bool master;
-	int (*stream_start)(struct stream *, struct device *dev);
-	void (*stream_disable)(struct stream *, struct device *dev);
+	int (*stream_start)(struct stream *, const struct device *dev);
+	void (*stream_disable)(struct stream *, const struct device *dev);
 	void (*queue_drop)(struct stream *);
 };
 
 /* Device run time data */
 struct i2s_stm32_data {
-	struct device *dev_dma_tx;
-	struct device *dev_dma_rx;
+	const struct device *dev_dma_tx;
+	const struct device *dev_dma_rx;
 	struct stream rx;
 	struct stream tx;
 };

@@ -31,7 +31,7 @@ LOG_MODULE_REGISTER(LIS2DW12, CONFIG_SENSOR_LOG_LEVEL);
  * @dev: Pointer to instance of struct device (I2C or SPI)
  * @range: Full scale range (2, 4, 8 and 16 G)
  */
-static int lis2dw12_set_range(struct device *dev, uint16_t range)
+static int lis2dw12_set_range(const struct device *dev, uint16_t range)
 {
 	int err;
 	struct lis2dw12_data *lis2dw12 = dev->data;
@@ -60,7 +60,7 @@ static int lis2dw12_set_range(struct device *dev, uint16_t range)
  * @dev: Pointer to instance of struct device (I2C or SPI)
  * @odr: Output data rate
  */
-static int lis2dw12_set_odr(struct device *dev, uint16_t odr)
+static int lis2dw12_set_odr(const struct device *dev, uint16_t odr)
 {
 	struct lis2dw12_data *lis2dw12 = dev->data;
 	uint8_t val;
@@ -92,7 +92,7 @@ static inline void lis2dw12_convert(struct sensor_value *val, int raw_val,
 	val->val2 = dval % 1000000LL;
 }
 
-static inline void lis2dw12_channel_get_acc(struct device *dev,
+static inline void lis2dw12_channel_get_acc(const struct device *dev,
 					     enum sensor_channel chan,
 					     struct sensor_value *val)
 {
@@ -121,7 +121,7 @@ static inline void lis2dw12_channel_get_acc(struct device *dev,
 	}
 }
 
-static int lis2dw12_channel_get(struct device *dev,
+static int lis2dw12_channel_get(const struct device *dev,
 				 enum sensor_channel chan,
 				 struct sensor_value *val)
 {
@@ -140,7 +140,7 @@ static int lis2dw12_channel_get(struct device *dev,
 	return -ENOTSUP;
 }
 
-static int lis2dw12_config(struct device *dev, enum sensor_channel chan,
+static int lis2dw12_config(const struct device *dev, enum sensor_channel chan,
 			    enum sensor_attribute attr,
 			    const struct sensor_value *val)
 {
@@ -157,7 +157,8 @@ static int lis2dw12_config(struct device *dev, enum sensor_channel chan,
 	return -ENOTSUP;
 }
 
-static int lis2dw12_attr_set(struct device *dev, enum sensor_channel chan,
+static int lis2dw12_attr_set(const struct device *dev,
+			      enum sensor_channel chan,
 			      enum sensor_attribute attr,
 			      const struct sensor_value *val)
 {
@@ -175,15 +176,16 @@ static int lis2dw12_attr_set(struct device *dev, enum sensor_channel chan,
 	return -ENOTSUP;
 }
 
-static int lis2dw12_sample_fetch(struct device *dev, enum sensor_channel chan)
+static int lis2dw12_sample_fetch(const struct device *dev,
+				 enum sensor_channel chan)
 {
 	struct lis2dw12_data *lis2dw12 = dev->data;
 	const struct lis2dw12_device_config *cfg = dev->config;
 	uint8_t shift;
-	union axis3bit16_t buf;
+	int16_t buf[3];
 
 	/* fetch raw data sample */
-	if (lis2dw12_acceleration_raw_get(lis2dw12->ctx, buf.u8bit) < 0) {
+	if (lis2dw12_acceleration_raw_get(lis2dw12->ctx, buf) < 0) {
 		LOG_DBG("Failed to fetch raw data sample");
 		return -EIO;
 	}
@@ -195,9 +197,9 @@ static int lis2dw12_sample_fetch(struct device *dev, enum sensor_channel chan)
 		shift = LIS2DW12_SHIFT_PMOTHER;
 	}
 
-	lis2dw12->acc[0] = sys_le16_to_cpu(buf.i16bit[0]) >> shift;
-	lis2dw12->acc[1] = sys_le16_to_cpu(buf.i16bit[1]) >> shift;
-	lis2dw12->acc[2] = sys_le16_to_cpu(buf.i16bit[2]) >> shift;
+	lis2dw12->acc[0] = sys_le16_to_cpu(buf[0]) >> shift;
+	lis2dw12->acc[1] = sys_le16_to_cpu(buf[1]) >> shift;
+	lis2dw12->acc[2] = sys_le16_to_cpu(buf[2]) >> shift;
 
 	return 0;
 }
@@ -211,7 +213,7 @@ static const struct sensor_driver_api lis2dw12_driver_api = {
 	.channel_get = lis2dw12_channel_get,
 };
 
-static int lis2dw12_init_interface(struct device *dev)
+static int lis2dw12_init_interface(const struct device *dev)
 {
 	struct lis2dw12_data *lis2dw12 = dev->data;
 	const struct lis2dw12_device_config *cfg = dev->config;
@@ -253,7 +255,7 @@ static int lis2dw12_set_power_mode(struct lis2dw12_data *lis2dw12,
 	return lis2dw12_write_reg(lis2dw12->ctx, LIS2DW12_CTRL1, &regval, 1);
 }
 
-static int lis2dw12_init(struct device *dev)
+static int lis2dw12_init(const struct device *dev)
 {
 	struct lis2dw12_data *lis2dw12 = dev->data;
 	const struct lis2dw12_device_config *cfg = dev->config;

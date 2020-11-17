@@ -19,11 +19,12 @@ LOG_MODULE_REGISTER(adc_mcux_adc16);
 
 struct mcux_adc16_config {
 	ADC_Type *base;
-	void (*irq_config_func)(struct device *dev);
+	void (*irq_config_func)(const struct device *dev);
+	bool channel_mux_b;
 };
 
 struct mcux_adc16_data {
-	struct device *dev;
+	const struct device *dev;
 	struct adc_context ctx;
 	uint16_t *buffer;
 	uint16_t *repeat_buffer;
@@ -31,7 +32,7 @@ struct mcux_adc16_data {
 	uint8_t channel_id;
 };
 
-static int mcux_adc16_channel_setup(struct device *dev,
+static int mcux_adc16_channel_setup(const struct device *dev,
 				    const struct adc_channel_cfg *channel_cfg)
 {
 	uint8_t channel_id = channel_cfg->channel_id;
@@ -64,7 +65,8 @@ static int mcux_adc16_channel_setup(struct device *dev,
 	return 0;
 }
 
-static int start_read(struct device *dev, const struct adc_sequence *sequence)
+static int start_read(const struct device *dev,
+		      const struct adc_sequence *sequence)
 {
 	const struct mcux_adc16_config *config = dev->config;
 	struct mcux_adc16_data *data = dev->data;
@@ -131,7 +133,7 @@ static int start_read(struct device *dev, const struct adc_sequence *sequence)
 	return error;
 }
 
-static int mcux_adc16_read(struct device *dev,
+static int mcux_adc16_read(const struct device *dev,
 			   const struct adc_sequence *sequence)
 {
 	struct mcux_adc16_data *data = dev->data;
@@ -145,7 +147,7 @@ static int mcux_adc16_read(struct device *dev,
 }
 
 #ifdef CONFIG_ADC_ASYNC
-static int mcux_adc16_read_async(struct device *dev,
+static int mcux_adc16_read_async(const struct device *dev,
 				 const struct adc_sequence *sequence,
 				 struct k_poll_signal *async)
 {
@@ -160,7 +162,7 @@ static int mcux_adc16_read_async(struct device *dev,
 }
 #endif
 
-static void mcux_adc16_start_channel(struct device *dev)
+static void mcux_adc16_start_channel(const struct device *dev)
 {
 	const struct mcux_adc16_config *config = dev->config;
 	struct mcux_adc16_data *data = dev->data;
@@ -202,9 +204,8 @@ static void adc_context_update_buffer_pointer(struct adc_context *ctx,
 	}
 }
 
-static void mcux_adc16_isr(void *arg)
+static void mcux_adc16_isr(const struct device *dev)
 {
-	struct device *dev = (struct device *)arg;
 	const struct mcux_adc16_config *config = dev->config;
 	struct mcux_adc16_data *data = dev->data;
 	ADC_Type *base = config->base;
@@ -225,7 +226,7 @@ static void mcux_adc16_isr(void *arg)
 	}
 }
 
-static int mcux_adc16_init(struct device *dev)
+static int mcux_adc16_init(const struct device *dev)
 {
 	const struct mcux_adc16_config *config = dev->config;
 	struct mcux_adc16_data *data = dev->data;
@@ -256,7 +257,9 @@ static int mcux_adc16_init(struct device *dev)
 	ADC16_SetHardwareAverage(base, kADC16_HardwareAverageCount32);
 	ADC16_DoAutoCalibration(base);
 #endif
-
+	if (config->channel_mux_b) {
+		ADC16_SetChannelMuxMode(base, kADC16_ChannelMuxB);
+	}
 	ADC16_EnableHardwareTrigger(base, false);
 
 	config->irq_config_func(dev);
@@ -276,11 +279,12 @@ static const struct adc_driver_api mcux_adc16_driver_api = {
 };
 
 #define ACD16_MCUX_INIT(n)						\
-	static void mcux_adc16_config_func_##n(struct device *dev);	\
+	static void mcux_adc16_config_func_##n(const struct device *dev); \
 									\
 	static const struct mcux_adc16_config mcux_adc16_config_##n = {	\
 		.base = (ADC_Type *)DT_INST_REG_ADDR(n),		\
 		.irq_config_func = mcux_adc16_config_func_##n,		\
+		.channel_mux_b = DT_INST_PROP(n, channel_mux_b),	\
 	};								\
 									\
 	static struct mcux_adc16_data mcux_adc16_data_##n = {		\
@@ -295,7 +299,7 @@ static const struct adc_driver_api mcux_adc16_driver_api = {
 			    CONFIG_KERNEL_INIT_PRIORITY_DEVICE,		\
 			    &mcux_adc16_driver_api);			\
 									\
-	static void mcux_adc16_config_func_##n(struct device *dev)	\
+	static void mcux_adc16_config_func_##n(const struct device *dev) \
 	{								\
 		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority),	\
 			    mcux_adc16_isr,				\

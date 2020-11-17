@@ -175,7 +175,7 @@ Bluetooth Mesh:
     # Provisional entry, subject to approval
     status: maintained
     maintainers:
-            - trond-snekvik
+        - trond-snekvik
     collaborators:
         - jhedberg
     files:
@@ -282,7 +282,7 @@ Display drivers:
     maintainers:
         - vanwinkeljan
     collaborators:
-        - jfischer-phytec-iot
+        - jfischer-no
     files:
         - drivers/display/
         - dts/bindings/display/
@@ -728,6 +728,7 @@ Documentation:
         - tbursztyka
     collaborators:
         - jukkar
+        - kludentwo
     files:
         - drivers/wifi/
     labels:
@@ -845,6 +846,17 @@ MCU Manager:
         - samples/subsys/mgmt/mcumgr/
     labels:
         - "area: mcumgr"
+
+OSDP:
+    status: maintained
+    collaborators:
+        - cbsiddharth
+    files:
+        - subsys/mgmt/osdp/
+        - include/mgmt/osdp.h
+        - samples/subsys/mgmt/osdp/
+    labels:
+        - "area: OSDP"
 
 Native POSIX and POSIX arch:
     status: maintained
@@ -968,8 +980,8 @@ nRF52 BSIM:
         - "platform: nrf52_bsim"
 
 POSIX API layer:
-    status: maintained
-    maintainers:
+    status: orphaned
+    collaborators:
         - pfalcon
     files:
         - include/posix/
@@ -996,6 +1008,7 @@ RISCV arch:
     collaborators:
         - mgielda
         - nategraff-sifive
+        - katsuster
     files:
         - arch/riscv/
         - include/arch/riscv/
@@ -1044,11 +1057,21 @@ Shields:
         - erwango
     collaborators:
         - avisconti
-        - jfischer-phytec-iot
+        - jfischer-no
     files:
         - boards/shields/
     labels:
         - "area: Shields"
+
+SPARC arch:
+    status: maintained
+    collaborators:
+        - martin-aberg
+    files:
+        - arch/sparc/
+        - include/arch/sparc/
+    labels:
+        - "area: SPARC"
 
 STM32:
     status: maintained
@@ -1109,7 +1132,7 @@ USB:
     # Provisional entry, subject to approval
     status: maintained
     maintainers:
-        - jfischer-phytec-iot
+        - jfischer-no
     collaborators:
         - finikorg
     files:

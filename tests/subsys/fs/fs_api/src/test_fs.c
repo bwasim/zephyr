@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <init.h>
 #include <fs/fs.h>
+#include <fs/fs_sys.h>
 #include <sys/__assert.h>
 #include "test_fs.h"
 
@@ -19,7 +20,7 @@ static char buffer[BUF_LEN];
 static char *read_pos = buffer;
 static char *cur = buffer;
 static int file_length;
-static struct fs_mount_t *mp[FS_TYPE_END];
+static struct fs_mount_t *mp[FS_TYPE_EXTERNAL_BASE];
 static bool nospace;
 
 static
@@ -294,11 +295,13 @@ static int temp_statvfs(struct fs_mount_t *mountp,
 
 static int temp_mount(struct fs_mount_t *mountp)
 {
+	size_t len = strlen(mountp->mnt_point);
+
 	if (mountp == NULL) {
 		return -EINVAL;
 	}
 
-	if (mountp->mnt_point[mountp->mountp_len - 1] != ':') {
+	if (mountp->mnt_point[len - 1] != ':') {
 		return -EINVAL;
 	}
 	mp[mountp->type] = mountp;

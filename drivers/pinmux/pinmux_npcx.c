@@ -14,7 +14,7 @@ LOG_MODULE_REGISTER(pimux_npcx, LOG_LEVEL_ERR);
 /* Driver config */
 struct npcx_pinctrl_config {
 	/* scfg device base address */
-	uint32_t base;
+	uintptr_t base;
 };
 
 /* Default io list which default functionality are not IOs */
@@ -30,12 +30,12 @@ static const struct npcx_pinctrl_config npcx_pinctrl_cfg = {
 	((const struct npcx_pinctrl_config *)(dev)->config)
 
 #define HAL_INSTANCE(dev) \
-	(struct scfg_reg_t *)(DRV_CONFIG(dev)->base)
+	(struct scfg_reg *)(DRV_CONFIG(dev)->base)
 
 /* Pin-control local functions */
 static void npcx_pinctrl_alt_sel(const struct npcx_alt *alt, int alt_func)
 {
-	uint32_t scfg_base = npcx_pinctrl_cfg.base;
+	const uint32_t scfg_base = npcx_pinctrl_cfg.base;
 	uint8_t alt_mask = BIT(alt->bit);
 
 	/*
@@ -51,8 +51,8 @@ static void npcx_pinctrl_alt_sel(const struct npcx_alt *alt, int alt_func)
 		NPCX_DEVALT(scfg_base, alt->group) &= ~alt_mask;
 }
 
-/* Soc specific pin-control functions */
-void soc_pinctrl_mux_configure(const struct npcx_alt *alts_list,
+/* Platform specific pin-control functions */
+void npcx_pinctrl_mux_configure(const struct npcx_alt *alts_list,
 		      uint8_t alts_size, int altfunc)
 {
 	int i;
@@ -63,9 +63,9 @@ void soc_pinctrl_mux_configure(const struct npcx_alt *alts_list,
 }
 
 /* Pin-control driver registration */
-static int npcx_pinctrl_init(struct device *dev)
+static int npcx_pinctrl_init(const struct device *dev)
 {
-	struct scfg_reg_t *inst = HAL_INSTANCE(dev);
+	struct scfg_reg *const inst = HAL_INSTANCE(dev);
 
 #if defined(CONFIG_SOC_SERIES_NPCX7)
 	/*
@@ -76,7 +76,7 @@ static int npcx_pinctrl_init(struct device *dev)
 #endif
 
 	/* Change all pads whose default functionality isn't IO to GPIO */
-	soc_pinctrl_mux_configure(def_alts, ARRAY_SIZE(def_alts), 0);
+	npcx_pinctrl_mux_configure(def_alts, ARRAY_SIZE(def_alts), 0);
 
 	return 0;
 }

@@ -21,18 +21,18 @@
 
 LOG_MODULE_REGISTER(IIS3DHHC, CONFIG_SENSOR_LOG_LEVEL);
 
-static int iis3dhhc_sample_fetch(struct device *dev,
+static int iis3dhhc_sample_fetch(const struct device *dev,
 				 enum sensor_channel chan)
 {
 	struct iis3dhhc_data *data = dev->data;
-	union axis3bit16_t raw_accel;
+	int16_t raw_accel[3];
 
 	__ASSERT_NO_MSG(chan == SENSOR_CHAN_ALL);
 
-	iis3dhhc_acceleration_raw_get(data->ctx, raw_accel.u8bit);
-	data->acc[0] = sys_le16_to_cpu(raw_accel.i16bit[0]);
-	data->acc[1] = sys_le16_to_cpu(raw_accel.i16bit[1]);
-	data->acc[2] = sys_le16_to_cpu(raw_accel.i16bit[2]);
+	iis3dhhc_acceleration_raw_get(data->ctx, raw_accel);
+	data->acc[0] = sys_le16_to_cpu(raw_accel[0]);
+	data->acc[1] = sys_le16_to_cpu(raw_accel[1]);
+	data->acc[2] = sys_le16_to_cpu(raw_accel[2]);
 
 	return 0;
 }
@@ -48,7 +48,7 @@ static inline void iis3dhhc_convert(struct sensor_value *val,
 	val->val2 = micro_ms2 % 1000000LL;
 }
 
-static inline void iis3dhhc_channel_get_acc(struct device *dev,
+static inline void iis3dhhc_channel_get_acc(const struct device *dev,
 					     enum sensor_channel chan,
 					     struct sensor_value *val)
 {
@@ -77,7 +77,7 @@ static inline void iis3dhhc_channel_get_acc(struct device *dev,
 	}
 }
 
-static int iis3dhhc_channel_get(struct device *dev,
+static int iis3dhhc_channel_get(const struct device *dev,
 				enum sensor_channel chan,
 				struct sensor_value *val)
 {
@@ -96,8 +96,8 @@ static int iis3dhhc_channel_get(struct device *dev,
 	return -ENOTSUP;
 }
 
-static int iis3dhhc_odr_set(struct device *dev,
-			   const struct sensor_value *val)
+static int iis3dhhc_odr_set(const struct device *dev,
+			    const struct sensor_value *val)
 {
 	struct iis3dhhc_data *data = dev->data;
 	iis3dhhc_norm_mod_en_t en;
@@ -121,9 +121,10 @@ static int iis3dhhc_odr_set(struct device *dev,
 	return 0;
 }
 
-static int iis3dhhc_attr_set(struct device *dev, enum sensor_channel chan,
-			    enum sensor_attribute attr,
-			    const struct sensor_value *val)
+static int iis3dhhc_attr_set(const struct device *dev,
+			     enum sensor_channel chan,
+			     enum sensor_attribute attr,
+			     const struct sensor_value *val)
 {
 	if (chan != SENSOR_CHAN_ALL) {
 		LOG_WRN("attr_set() not supported on this channel.");
@@ -150,7 +151,7 @@ static const struct sensor_driver_api iis3dhhc_api_funcs = {
 #endif
 };
 
-static int iis3dhhc_init_chip(struct device *dev)
+static int iis3dhhc_init_chip(const struct device *dev)
 {
 	struct iis3dhhc_data *data = dev->data;
 	uint8_t chip_id, rst;
@@ -189,7 +190,7 @@ static int iis3dhhc_init_chip(struct device *dev)
 	return 0;
 }
 
-static int iis3dhhc_init(struct device *dev)
+static int iis3dhhc_init(const struct device *dev)
 {
 	const struct iis3dhhc_config * const config = dev->config;
 	struct iis3dhhc_data *data = dev->data;

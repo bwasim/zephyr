@@ -63,6 +63,7 @@ static struct modem_pin modem_pins[] = {
 };
 
 #define MDM_UART_DEV_NAME		DT_INST_BUS_LABEL(0)
+#define MDM_UART_NODE			DT_BUS(DT_DRV_INST(0))
 
 #define MDM_POWER_ENABLE		1
 #define MDM_POWER_DISABLE		0
@@ -86,8 +87,6 @@ static struct modem_pin modem_pins[] = {
 #define MDM_NETWORK_RETRY_COUNT		3
 #define MDM_WAIT_FOR_RSSI_COUNT		10
 #define MDM_WAIT_FOR_RSSI_DELAY		K_SECONDS(2)
-
-#define BUF_ALLOC_TIMEOUT		K_SECONDS(1)
 
 #define MDM_MANUFACTURER_LENGTH		10
 #define MDM_MODEL_LENGTH		16
@@ -131,12 +130,10 @@ struct modem_data {
 
 	/* modem interface */
 	struct modem_iface_uart_data iface_data;
-	uint8_t iface_isr_buf[MDM_RECV_BUF_SIZE];
 	uint8_t iface_rb_buf[MDM_MAX_DATA_LENGTH];
 
 	/* modem cmds */
 	struct modem_cmd_handler_data cmd_handler_data;
-	uint8_t cmd_read_buf[MDM_RECV_BUF_SIZE];
 	uint8_t cmd_match_buf[MDM_RECV_BUF_SIZE + 1];
 
 	/* socket data */
@@ -1663,7 +1660,7 @@ static uint32_t hash32(char *str, int len)
 	return h;
 }
 
-static inline uint8_t *modem_get_mac(struct device *dev)
+static inline uint8_t *modem_get_mac(const struct device *dev)
 {
 	struct modem_data *data = dev->data;
 	uint32_t hash_value;
@@ -1681,7 +1678,7 @@ static inline uint8_t *modem_get_mac(struct device *dev)
 
 static void modem_net_iface_init(struct net_if *iface)
 {
-	struct device *dev = net_if_get_device(iface);
+	const struct device *dev = net_if_get_device(iface);
 	struct modem_data *data = dev->data;
 
 	/* Direct socket offload used instead of net offload: */
@@ -1712,7 +1709,7 @@ static struct modem_cmd unsol_cmds[] = {
 	MODEM_CMD("+CREG: ", on_cmd_socknotifycreg, 1U, ""),
 };
 
-static int modem_init(struct device *dev)
+static int modem_init(const struct device *dev)
 {
 	int ret = 0;
 
@@ -1741,12 +1738,10 @@ static int modem_init(struct device *dev)
 	mdata.cmd_handler_data.cmds_len[CMD_RESP] = ARRAY_SIZE(response_cmds);
 	mdata.cmd_handler_data.cmds[CMD_UNSOL] = unsol_cmds;
 	mdata.cmd_handler_data.cmds_len[CMD_UNSOL] = ARRAY_SIZE(unsol_cmds);
-	mdata.cmd_handler_data.read_buf = &mdata.cmd_read_buf[0];
-	mdata.cmd_handler_data.read_buf_len = sizeof(mdata.cmd_read_buf);
 	mdata.cmd_handler_data.match_buf = &mdata.cmd_match_buf[0];
 	mdata.cmd_handler_data.match_buf_len = sizeof(mdata.cmd_match_buf);
 	mdata.cmd_handler_data.buf_pool = &mdm_recv_pool;
-	mdata.cmd_handler_data.alloc_timeout = BUF_ALLOC_TIMEOUT;
+	mdata.cmd_handler_data.alloc_timeout = K_NO_WAIT;
 	mdata.cmd_handler_data.eol = "\r";
 	ret = modem_cmd_handler_init(&mctx.cmd_handler,
 				     &mdata.cmd_handler_data);
@@ -1755,8 +1750,8 @@ static int modem_init(struct device *dev)
 	}
 
 	/* modem interface */
-	mdata.iface_data.isr_buf = &mdata.iface_isr_buf[0];
-	mdata.iface_data.isr_buf_len = sizeof(mdata.iface_isr_buf);
+	mdata.iface_data.hw_flow_control = DT_PROP(MDM_UART_NODE,
+						   hw_flow_control);
 	mdata.iface_data.rx_rb_buf = &mdata.iface_rb_buf[0];
 	mdata.iface_data.rx_rb_buf_len = sizeof(mdata.iface_rb_buf);
 	ret = modem_iface_uart_init(&mctx.iface, &mdata.iface_data,

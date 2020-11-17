@@ -211,6 +211,7 @@ config LOG_PROCESS_THREAD_STACK_SIZE
 	default 1024 if XTENSA
 	default 4096 if (X86 && X86_64)
 	default 4096 if ARM64
+	default 4096 if SPARC
 	default 768
 	help
 	  Set the internal stack size for log processing thread.
@@ -452,7 +453,7 @@ config LOG_BACKEND_NATIVE_POSIX
 
 config LOG_BACKEND_XTENSA_SIM
 	bool "Enable xtensa simulator backend"
-	depends on SOC_XTENSA_SAMPLE_CONTROLLER || SOC_INTEL_APL_ADSP
+	depends on SOC_XTENSA_SAMPLE_CONTROLLER || SOC_FAMILY_INTEL_ADSP
 	help
 	  Enable backend in xtensa simulator
 
@@ -515,6 +516,16 @@ config LOG_BACKEND_NET_SYST_ENABLE
 	help
 	  When enabled backend is using networking to output syst format logs.
 
+config LOG_BACKEND_NET_AUTOSTART
+	bool "Automatically start networking backend"
+	default y if NET_CONFIG_NEED_IPV4 || NET_CONFIG_NEED_IPV6
+	help
+	  When enabled automatically start the networking backend on
+	  application start. If no routes to the logging server are available
+	  on application startup, this must be set to n and the backend must be
+	  started by the application later on. Otherwise the logging
+	  thread might block.
+
 endif # LOG_BACKEND_NET
 
 config LOG_BACKEND_RB
@@ -542,6 +553,19 @@ config LOG_BACKEND_RB_SLOT_SIZE
 	help
 	  Size of the message slot inside ring buffer. All log messages
 	  are split to similar sized logging slots.
+
+config LOG_BACKEND_RB_CLEAR
+	bool "Clear ring buffer slot"
+	default y
+	help
+	  Clearing ring buffer slot helps to write more easy tools to read logs
+	  on different platforms.
+
+config LOG_BACKEND_RB_TIMESTAMP
+	bool "Add timestamp to the log"
+	default y
+	help
+	  Add timestamp to the logging string.
 
 endif # LOG_BACKEND_RB
 

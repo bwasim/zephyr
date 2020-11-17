@@ -28,7 +28,6 @@
 			mpu: mpu@e000ed90 {
 				compatible = "arm,armv8m-mpu";
 				reg = <0xe000ed90 0x40>;
-				arm,num-mpu-regions = <16>;
 			};
 		};
 	};
@@ -153,6 +152,7 @@
 		rtc0: rtc@41011000 {
 			compatible = "nordic,nrf-rtc";
 			reg = <0x41011000 0x1000>;
+			cc-num = <4>;
 			interrupts = <17 1>;
 			status = "okay";
 			label = "RTC_0";
@@ -161,6 +161,7 @@
 		rtc1: rtc@41016000 {
 			compatible = "nordic,nrf-rtc";
 			reg = <0x41016000 0x1000>;
+			cc-num = <4>;
 			interrupts = <22 1>;
 			status = "okay";
 			label = "RTC_1";
@@ -193,6 +194,7 @@
 			compatible = "nordic,nrf-timer";
 			status = "disabled";
 			reg = <0x4100c000 0x1000>;
+			cc-num = <8>;
 			interrupts = <12 1>;
 			prescaler = <0>;
 			label = "TIMER0";
@@ -202,6 +204,7 @@
 			compatible = "nordic,nrf-timer";
 			status = "disabled";
 			reg = <0x41018000 0x1000>;
+			cc-num = <8>;
 			interrupts = <24 1>;
 			prescaler = <0>;
 			label = "TIMER1";
@@ -211,6 +214,7 @@
 			compatible = "nordic,nrf-timer";
 			status = "disabled";
 			reg = <0x41019000 0x1000>;
+			cc-num = <8>;
 			interrupts = <25 1>;
 			prescaler = <0>;
 			label = "TIMER2";
@@ -248,4 +252,8 @@
 
 &nvic {
 	arm,num-irq-priority-bits = <3>;
+};
+
+&systick {
+	status = "disabled";
 };

@@ -238,17 +238,18 @@ struct cmsghdr {
 	socklen_t cmsg_len;    /* Number of bytes, including header */
 	int       cmsg_level;  /* Originating protocol */
 	int       cmsg_type;   /* Protocol-specific type */
-	/* Followed by unsigned char cmsg_data[]; */
+	/* Flexible array member to force alignment of cmsghdr */
+	z_max_align_t cmsg_data[];
 };
 
 /* Alignment for headers and data. These are arch specific but define
  * them here atm if not found alredy.
  */
 #if !defined(ALIGN_H)
-#define ALIGN_H(x) WB_UP(x)
+#define ALIGN_H(x) ROUND_UP(x, __alignof__(struct cmsghdr))
 #endif
 #if !defined(ALIGN_D)
-#define ALIGN_D(x) WB_UP(x)
+#define ALIGN_D(x) ROUND_UP(x, __alignof__(z_max_align_t))
 #endif
 
 #if !defined(CMSG_FIRSTHDR)
@@ -310,9 +311,11 @@ struct cmsghdr {
 
 #if defined(CONFIG_NET_IPV6)
 #undef NET_SOCKADDR_MAX_SIZE
-#undef NET_SOCKADDR_PTR_MAX_SIZE
 #define NET_SOCKADDR_MAX_SIZE (sizeof(struct sockaddr_in6))
+#if !defined(CONFIG_NET_SOCKETS_PACKET)
+#undef NET_SOCKADDR_PTR_MAX_SIZE
 #define NET_SOCKADDR_PTR_MAX_SIZE (sizeof(struct sockaddr_in6_ptr))
+#endif
 #endif
 
 #if !defined(CONFIG_NET_IPV4)
@@ -693,7 +696,7 @@ static inline bool net_ipv4_is_addr_unspecified(const struct in_addr *addr)
  */
 static inline bool net_ipv4_is_addr_mcast(const struct in_addr *addr)
 {
-	return (ntohl(UNALIGNED_GET(&addr->s_addr)) & 0xE0000000) == 0xE0000000;
+	return (ntohl(UNALIGNED_GET(&addr->s_addr)) & 0xF0000000) == 0xE0000000;
 }
 
 /**
@@ -1024,6 +1027,57 @@ static inline bool net_ipv6_is_addr_mcast_group(const struct in6_addr *addr,
 }
 
 /**
+ * @brief Check if the IPv6 address belongs to the all nodes multicast group
+ *
+ * @param addr IPv6 address
+ *
+ * @return True if the IPv6 multicast address belongs to the all nodes multicast
+ * group, false otherwise
+ */
+static inline bool
+net_ipv6_is_addr_mcast_all_nodes_group(const struct in6_addr *addr)
+{
+	static const struct in6_addr all_nodes_mcast_group = {
+		{ { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		    0x00, 0x00, 0x00, 0x00, 0x00, 0x01 } }
+	};
+
+	return net_ipv6_is_addr_mcast_group(addr, &all_nodes_mcast_group);
+}
+
+/**
+ * @brief Check if the IPv6 address is a interface scope all nodes multicast
+ * address (FF01::1).
+ *
+ * @param addr IPv6 address.
+ *
+ * @return True if the address is a interface scope all nodes multicast address,
+ * false otherwise.
+ */
+static inline bool
+net_ipv6_is_addr_mcast_iface_all_nodes(const struct in6_addr *addr)
+{
+	return net_ipv6_is_addr_mcast_iface(addr) &&
+	       net_ipv6_is_addr_mcast_all_nodes_group(addr);
+}
+
+/**
+ * @brief Check if the IPv6 address is a link local scope all nodes multicast
+ * address (FF02::1).
+ *
+ * @param addr IPv6 address.
+ *
+ * @return True if the address is a link local scope all nodes multicast
+ * address, false otherwise.
+ */
+static inline bool
+net_ipv6_is_addr_mcast_link_all_nodes(const struct in6_addr *addr)
+{
+	return net_ipv6_is_addr_mcast_link(addr) &&
+	       net_ipv6_is_addr_mcast_all_nodes_group(addr);
+}
+
+/**
  *  @brief Create solicited node IPv6 multicast address
  *  FF02:0:0:0:0:1:FFXX:XXXX defined in RFC 3513
  *
@@ -1104,9 +1158,7 @@ static inline void net_ipv6_addr_create_ll_allrouters_mcast(struct in6_addr *add
 static inline void net_ipv6_addr_create_iid(struct in6_addr *addr,
 					    struct net_linkaddr *lladdr)
 {
-	addr->s6_addr[0] = 0xfe;
-	addr->s6_addr[1] = 0x80;
-	UNALIGNED_PUT(0, &addr->s6_addr16[1]);
+	UNALIGNED_PUT(htonl(0xfe800000), &addr->s6_addr32[0]);
 	UNALIGNED_PUT(0, &addr->s6_addr32[1]);
 
 	switch (lladdr->len) {

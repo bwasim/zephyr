@@ -19,6 +19,7 @@
 #include <kernel_structs.h>
 #include <arch/common/ffs.h>
 #include <sys/util.h>
+#include <arch/x86/ia32/gdbstub.h>
 #include <arch/x86/ia32/thread.h>
 #include <arch/x86/ia32/syscall.h>
 
@@ -35,6 +36,19 @@
 #define DATA_SEG	0x10
 #define MAIN_TSS	0x18
 #define DF_TSS		0x20
+
+/*
+ * Use for thread local storage.
+ * Match these to gen_gdt.py.
+ * The 0x03 is added to limit privilege.
+ */
+#if defined(CONFIG_USERSPACE)
+#define GS_TLS_SEG	(0x38 | 0x03)
+#elif defined(CONFIG_HW_STACK_PROTECTION)
+#define GS_TLS_SEG	(0x28 | 0x03)
+#else
+#define GS_TLS_SEG	(0x18 | 0x03)
+#endif
 
 /**
  * Macro used internally by NANO_CPU_INT_REGISTER and NANO_CPU_INT_REGISTER_ASM.
@@ -329,6 +343,13 @@ static inline void arch_isr_direct_footer(int swap)
  */
 
 typedef struct nanoEsf {
+#ifdef CONFIG_GDBSTUB
+	unsigned int ss;
+	unsigned int gs;
+	unsigned int fs;
+	unsigned int es;
+	unsigned int ds;
+#endif
 	unsigned int esp;
 	unsigned int ebp;
 	unsigned int ebx;
@@ -343,6 +364,7 @@ typedef struct nanoEsf {
 	unsigned int eflags;
 } z_arch_esf_t;
 
+extern unsigned int z_x86_exception_vector;
 
 struct _x86_syscall_stack_frame {
 	uint32_t eip;

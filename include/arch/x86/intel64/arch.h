@@ -35,12 +35,12 @@ struct x86_esf {
 #ifdef CONFIG_EXCEPTION_DEBUG
 	/* callee-saved */
 	unsigned long rbx;
-	unsigned long rbp;
 	unsigned long r12;
 	unsigned long r13;
 	unsigned long r14;
 	unsigned long r15;
 #endif /* CONFIG_EXCEPTION_DEBUG */
+	unsigned long rbp;
 
 	/* Caller-saved regs */
 	unsigned long rax;
@@ -93,10 +93,22 @@ struct x86_ssf {
 
 #endif /* _ASMLANGUAGE */
 
+#ifdef CONFIG_PCIE
+#define X86_RESERVE_IRQ(irq_p, name) \
+	static Z_DECL_ALIGN(uint8_t) name \
+	__in_section(_irq_alloc, static, name) __used = irq_p
+#else
+#define X86_RESERVE_IRQ(irq_p, name)
+#endif
+
 /*
  * All Intel64 interrupts are dynamically connected.
  */
 
-#define ARCH_IRQ_CONNECT arch_irq_connect_dynamic
+#define ARCH_IRQ_CONNECT(irq_p, priority_p, isr_p, isr_param_p, flags_p) \
+	X86_RESERVE_IRQ(irq_p, _CONCAT(_irq_alloc_fixed, __COUNTER__)); \
+	arch_irq_connect_dynamic(irq_p, priority_p,			\
+				 (void (*)(const void *))isr_p,		\
+				 isr_param_p, flags_p)
 
 #endif /* ZEPHYR_INCLUDE_ARCH_X86_INTEL64_ARCH_H_ */

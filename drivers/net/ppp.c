@@ -50,7 +50,7 @@ enum ppp_driver_state {
 K_KERNEL_STACK_DEFINE(ppp_workq, PPP_WORKQ_STACK_SIZE);
 
 struct ppp_driver_context {
-	struct device *dev;
+	const struct device *dev;
 	struct net_if *iface;
 
 	/* This net_pkt contains pkt that is being read */
@@ -194,9 +194,19 @@ static void ppp_change_state(struct ppp_driver_context *ctx,
 
 static int ppp_send_flush(struct ppp_driver_context *ppp, int off)
 {
-	if (!IS_ENABLED(CONFIG_NET_TEST)) {
-		uint8_t *buf = ppp->send_buf;
+	if (IS_ENABLED(CONFIG_NET_TEST)) {
+		return 0;
+	}
+	uint8_t *buf = ppp->send_buf;
 
+	/* If we're using gsm_mux, We don't want to use poll_out because sending
+	 * one byte at a time causes each byte to get wrapped in muxing headers.
+	 * But we can safely call uart_fifo_fill outside of ISR context when
+	 * muxing because uart_mux implements it in software.
+	 */
+	if (IS_ENABLED(CONFIG_GSM_MUX)) {
+		(void)uart_fifo_fill(ppp->dev, buf, off);
+	} else {
 		while (off--) {
 			uart_poll_out(ppp->dev, *buf++);
 		}
@@ -536,7 +546,7 @@ static uint16_t ppp_escape_byte(uint8_t byte, int *offset)
 	return byte;
 }
 
-static int ppp_send(struct device *dev, struct net_pkt *pkt)
+static int ppp_send(const struct device *dev, struct net_pkt *pkt)
 {
 	struct ppp_driver_context *ppp = dev->data;
 	struct net_buf *buf = pkt->buffer;
@@ -682,7 +692,7 @@ static void ppp_isr_cb_work(struct k_work *work)
 }
 #endif /* !CONFIG_NET_TEST */
 
-static int ppp_driver_init(struct device *dev)
+static int ppp_driver_init(const struct device *dev)
 {
 	struct ppp_driver_context *ppp = dev->data;
 
@@ -766,7 +776,7 @@ use_random_mac:
 }
 
 #if defined(CONFIG_NET_STATISTICS_PPP)
-static struct net_stats_ppp *ppp_get_stats(struct device *dev)
+static struct net_stats_ppp *ppp_get_stats(const struct device *dev)
 {
 	struct ppp_driver_context *context = dev->data;
 
@@ -775,7 +785,7 @@ static struct net_stats_ppp *ppp_get_stats(struct device *dev)
 #endif
 
 #if !defined(CONFIG_NET_TEST)
-static void ppp_uart_flush(struct device *dev)
+static void ppp_uart_flush(const struct device *dev)
 {
 	uint8_t c;
 
@@ -784,7 +794,7 @@ static void ppp_uart_flush(struct device *dev)
 	}
 }
 
-static void ppp_uart_isr(struct device *uart, void *user_data)
+static void ppp_uart_isr(const struct device *uart, void *user_data)
 {
 	struct ppp_driver_context *context = user_data;
 	int rx = 0, ret;
@@ -809,7 +819,7 @@ static void ppp_uart_isr(struct device *uart, void *user_data)
 }
 #endif /* !CONFIG_NET_TEST */
 
-static int ppp_start(struct device *dev)
+static int ppp_start(const struct device *dev)
 {
 	struct ppp_driver_context *context = dev->data;
 
@@ -827,7 +837,7 @@ static int ppp_start(struct device *dev)
 		 * then use our own config.
 		 */
 #if IS_ENABLED(CONFIG_GSM_MUX)
-		struct device *mux;
+		const struct device *mux;
 
 		mux = uart_mux_find(CONFIG_GSM_MUX_DLCI_PPP);
 		if (mux == NULL) {
@@ -847,7 +857,7 @@ static int ppp_start(struct device *dev)
 			return -EINVAL;
 		}
 
-		LOG_DBG("Initializing PPP to use %s", dev_name);
+		LOG_INF("Initializing PPP to use %s", dev_name);
 
 		context->dev = device_get_binding(dev_name);
 		if (!context->dev) {
@@ -869,12 +879,12 @@ static int ppp_start(struct device *dev)
 	return 0;
 }
 
-static int ppp_stop(struct device *dev)
+static int ppp_stop(const struct device *dev)
 {
 	struct ppp_driver_context *context = dev->data;
 
 	net_ppp_carrier_off(context->iface);
-
+	context->modem_init_done = false;
 	return 0;
 }
 

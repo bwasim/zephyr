@@ -27,7 +27,7 @@ static struct fs_mount_t test_fs_mnt_1 = {
 };
 
 static struct fs_mount_t test_fs_mnt_unsupported_fs = {
-		.type = FS_TYPE_END,
+		.type = FS_TYPE_EXTERNAL_BASE,
 		.mnt_point = "/MMCBLOCK:",
 		.fs_data = &test_data,
 };
@@ -119,7 +119,7 @@ void test_unmount(void)
 
 	TC_PRINT("\nunmount file system that has never been mounted:\n");
 	ret = fs_unmount(&test_fs_mnt_unsupported_fs);
-	zassert_not_equal(ret, 0, "Unmount a never mounted fs");
+	zassert_equal(ret, -EINVAL, "Unmount a never mounted fs");
 
 	TC_PRINT("\nunmount file system multiple times:\n");
 	ret = fs_unmount(&test_fs_mnt_1);
@@ -127,7 +127,7 @@ void test_unmount(void)
 
 	test_fs_mnt_1.fs = &temp_fs;
 	ret = fs_unmount(&test_fs_mnt_1);
-	zassert_not_equal(ret, 0, "Unmount a unmounted fs");
+	zassert_equal(ret, -EINVAL, "Unmount a unmounted fs");
 }
 
 /**
