@@ -79,11 +79,10 @@ static const struct sensor_driver_api bq2589x_battery_driver_api = {
 	static struct bq2589x_data bq2589x_driver_##index;                          \
 									                                            \
 	static const struct bq2589x_config bq2589x_config_##index = {               \
-		.bus_name = DT_INST_BUS_LABEL(index),                                   \
-		.design_voltage = DT_INST_PROP(index, design_voltage),                  \
-		.design_capacity = DT_INST_PROP(index, design_capacity),                \
-		.taper_current = DT_INST_PROP(index, taper_current),                    \
-		.terminate_voltage = DT_INST_PROP(index, terminate_voltage),            \
+		.bus_name       = DT_INST_BUS_LABEL(index),                             \
+		.charge_voltage = DT_INST_PROP(index, charge_voltage),                  \
+		.charge_current = DT_INST_PROP(index, charge_current),                  \
+		.term_current   = DT_INST_PROP(index, term_current),                    \
 	};                                                                          \
 									                                            \
 	DEVICE_DT_INST_DEFINE(index, &bq2589x_init, device_pm_control_nop,          \

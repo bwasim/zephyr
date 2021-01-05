@@ -375,4 +375,15 @@ enum  {
 	POWER_SUPPLY_CHARGE_TYPE_FAST
 };
 
+struct bq2589x_data {
+	const struct device *i2c;
+};
+
+struct bq2589x_config {
+	char     *bus_name;
+	uint32_t charge_voltage;
+	uint32_t charge_current;
+	uint32_t term_current;
+};
+
 #endif /* ZEPHYR_DRIVERS_SENSOR_BATTERY_BQ2589X_H_ */

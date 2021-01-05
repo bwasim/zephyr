@@ -1,0 +1,27 @@
+#
+# Copyright (c) 2020 Analog Life LLC
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+description: Texas Instruments BQ2589x Battery Controller
+
+compatible: "ti,bq2589x"
+
+include: i2c-device.yaml
+
+properties:
+    charge_voltage:
+      type: int
+      required: true
+      description: Battery Charge Voltage(mV)
+
+    charge_current:
+      type: int
+      required: true
+      description: Battery Charge Current(mAh)
+
+    term_current:
+      type: int
+      required: true
+      description: Battery Terminate Current(mAh)
