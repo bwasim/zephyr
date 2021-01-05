@@ -1,6 +1,11 @@
+/*
+ * Copyright (c) 2020 Analog Life LLC
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-#ifndef BQ2589X_H
-#define BQ2589X_H
+#ifndef ZEPHYR_DRIVERS_SENSOR_BATTERY_BQ2589X_H_
+#define ZEPHYR_DRIVERS_SENSOR_BATTERY_BQ2589X_H_
 
 #include <device.h>
 #include <zephyr.h>
@@ -8,7 +13,6 @@
 #include <time.h>
 
 #include <drivers/gpio.h>
-#include <drivers/i2c.h>
 
 /* Charger device identification. */
 #define BQ2589X_I2C_DEVICE  "I2C_0"
@@ -371,4 +375,4 @@ enum  {
 	POWER_SUPPLY_CHARGE_TYPE_FAST
 };
 
-#endif /* BQ2589X_H */
+#endif /* ZEPHYR_DRIVERS_SENSOR_BATTERY_BQ2589X_H_ */

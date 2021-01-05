@@ -1,3 +1,5 @@
+# Copyright (c) 2020 Analog Life LLC
+#
 # SPDX-License-Identifier: Apache-2.0
 
 zephyr_library()
