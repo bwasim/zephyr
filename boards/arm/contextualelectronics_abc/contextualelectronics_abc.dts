@@ -72,10 +72,10 @@ arduino_i2c: &i2c0 {
 	sda-pin    = <27>;
 	scl-pin    = <26>;
 
-	bq25890@6A {
+	bq25890@6a {
 		compatible     = "ti,bq2589x";
 		label          = "BQ2589X";
-		reg            = <0x6A>;
+		reg            = <0x6a>;
 		charge_voltage = <4208>;
 		charge_current = <2000>;
 		term_current   = <256>;
