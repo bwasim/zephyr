@@ -25,3 +25,19 @@ properties:
       type: int
       required: true
       description: Battery Terminate Current(mAh)
+
+    enable_auto_dpdm:
+      type: boolean
+      description: Enable Auto DPDM
+
+    enable_termination:
+      type: boolean
+      description: Enable Termination
+
+    enable_ico:
+      type: boolean
+      description: Enable ICO
+
+    use_absolute_vindpm:
+      type: boolean
+      description: Use Absolute VINdPM

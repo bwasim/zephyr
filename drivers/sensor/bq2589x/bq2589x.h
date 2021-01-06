@@ -376,6 +376,11 @@ struct bq2589x_config {
 	uint32_t charge_voltage;
 	uint32_t charge_current;
 	uint32_t term_current;
+	bool	 enable_auto_dpdm;
+	bool	 enable_term;
+	bool 	 enable_ico;
+	bool	 use_absolute_vindpm;
+
 };
 
 #endif /* ZEPHYR_DRIVERS_SENSOR_BATTERY_BQ2589X_H_ */
